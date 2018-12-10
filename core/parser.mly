@@ -320,175 +320,195 @@ let hear = "hear"
 | x = X           { [x] }
 
 interactive:
-| nofun_declaration                                            { `Definitions [$1] }
-| fun_declarations SEMICOLON                                   { `Definitions $1   }
-| SEMICOLON                                                    { `Definitions []   }
-| exp SEMICOLON                                                { `Expression $1    }
-| directive                                                    { `Directive $1     }
-| END                                                          { `Directive ("quit", []) (* rather hackish *) }
+| nofun_declaration          { `Definitions [$1] }
+| fun_declarations SEMICOLON { `Definitions $1   }
+| SEMICOLON                  { `Definitions []   }
+| exp SEMICOLON              { `Expression $1    }
+| directive                  { `Directive $1     }
+| END                        { `Directive ("quit", []) (* rather hackish *) }
 
 file:
-| declarations exp? END                                        { ($1, $2     ) }
-| exp END                                                      { ([], Some $1) }
+| declarations exp? END      { ($1, $2     ) }
+| exp END                    { ([], Some $1) }
 
 directive:
-| KEYWORD args SEMICOLON                                       { ($1, $2) }
+| KEYWORD args SEMICOLON     { ($1, $2) }
 
 args:
-| arg*                                                         { $1 }
+| arg*                       { $1 }
 
 arg:
-| STRING                                                       { $1 }
-| VARIABLE                                                     { $1 }
-| CONSTRUCTOR                                                  { $1 }
-| UINTEGER                                                     { string_of_int    $1 }
-| UFLOAT                                                       { string_of_float' $1 }
-| TRUE                                                         { "true"  }
-| FALSE                                                        { "false" }
+| STRING                     { $1 }
+| VARIABLE                   { $1 }
+| CONSTRUCTOR                { $1 }
+| UINTEGER                   { string_of_int    $1 }
+| UFLOAT                     { string_of_float' $1 }
+| TRUE                       { "true"  }
+| FALSE                      { "false" }
 
 var:
-| VARIABLE                                                     { with_pos $loc $1 }
+| VARIABLE                   { with_pos $loc $1 }
 
 declarations:
-| declarations declaration                                     { $1 @ [$2] }
-| declaration                                                  { [$1] }
+| declarations declaration   { $1 @ [$2] }
+| declaration                { [$1] }
 
 declaration:
-| fun_declaration | nofun_declaration                          { $1 }
+| fun_declaration | nofun_declaration  { $1 }
 
 nofun_declaration:
-| alien_block                                                  { $1 }
-| ALIEN VARIABLE STRING var COLON datatype SEMICOLON           { with_pos $loc
-                                                                          (`Foreign (make_untyped_binder $4, $4.node, $2, $3, datatype $6)) }
-| fixity perhaps_uinteger op SEMICOLON                         { let assoc, set = $1 in
-                                                                   set assoc (from_option default_fixity $2) ($3.node);
-                                                                   with_pos $loc `Infix }
-| tlvarbinding SEMICOLON                                       { let (bndr,p,l) = $1
-                                                                 in with_pos $loc($1) (`Val ([],
-                                                                    (with_pos $loc($1) (`Variable (make_untyped_binder bndr))), p, l, None)) }
-| signature tlvarbinding SEMICOLON                             { annotate $loc($1) $1 $loc($2) (`Var $2) }
-| typedecl SEMICOLON | links_module | links_open SEMICOLON     { $1 }
+| alien_block
+  { $1 }
+| ALIEN VARIABLE STRING var COLON datatype SEMICOLON
+  { with_pos $loc (`Foreign ( make_untyped_binder $4
+                            , $4.node, $2, $3, datatype $6)) }
+| fixity perhaps_uinteger op SEMICOLON
+  { let assoc, set = $1 in
+    set assoc (from_option default_fixity $2) ($3.node);
+    with_pos $loc `Infix }
+| tlvarbinding SEMICOLON
+  { let (bndr,p,l) = $1 in
+    let pat = with_pos $loc($1) (`Variable (make_untyped_binder bndr)) in
+    with_pos $loc($1) (`Val ([], pat, p, l, None)) }
+| signature tlvarbinding SEMICOLON
+  { annotate $loc($1) $1 $loc($2) (`Var $2) }
+| typedecl SEMICOLON | links_module | links_open SEMICOLON  { $1 }
 
 alien_datatype:
-| var COLON datatype SEMICOLON                                 { (make_untyped_binder $1, datatype $3) }
+| var COLON datatype SEMICOLON
+  { (make_untyped_binder $1, datatype $3) }
 
 alien_datatypes:
-| alien_datatype+                                              { $1 }
+| alien_datatype+  { $1 }
 
 links_module:
-| MODULE module_name moduleblock                               { with_pos $loc($2) (`Module ($2, $3)) }
+| MODULE module_name moduleblock
+  { with_pos $loc($2) (`Module ($2, $3)) }
 
 alien_block:
-| ALIEN VARIABLE STRING LBRACE alien_datatypes RBRACE          { with_pos $loc (`AlienBlock ($2, $3, $5)) }
+| ALIEN VARIABLE STRING LBRACE alien_datatypes RBRACE
+  { with_pos $loc (`AlienBlock ($2, $3, $5)) }
 
 module_name:
-| CONSTRUCTOR                                                  { $1 }
+| CONSTRUCTOR  { $1 }
 
 fun_declarations:
-| fun_declaration+                                             { $1 }
+| fun_declaration+  { $1 }
 
 fun_declaration:
-| tlfunbinding                                                 { let (bndr,lin,p,l) = $1
-                                                                 in with_pos $loc (`Fun (make_untyped_binder bndr,lin,([],p),l,None)) }
-| signature tlfunbinding                                       { annotate $loc($1) $1 $loc($2) (`Fun     $2) }
-| signature typed_handler_binding                              { annotate $loc($1) $1 $loc($2) (`Handler $2) }
-| typed_handler_binding                                        { with_pos $loc (`Handler $1) }
+| tlfunbinding
+  { let (bndr,lin,p,l) = $1 in
+    with_pos $loc (`Fun (make_untyped_binder bndr,lin,([],p),l,None)) }
+| signature tlfunbinding
+  { annotate $loc($1) $1 $loc($2) (`Fun $2) }
+| signature typed_handler_binding
+  { annotate $loc($1) $1 $loc($2) (`Handler $2) }
+| typed_handler_binding
+  { with_pos $loc (`Handler $1) }
 
 typed_handler_binding:
-| handler_depth optional_computation_parameter var
-                handler_parameterization                        { let binder = make_untyped_binder $3 in
-                                                                  let hnlit  = ($1, $2, fst $4, snd $4) in
-                                                                  (binder, hnlit, None) }
+| handler_depth optional_computation_parameter var handler_parameterization
+ { let binder = make_untyped_binder $3 in
+   let hnlit  = ($1, $2, fst $4, snd $4) in
+   (binder, hnlit, None) }
 
 optional_computation_parameter:
-| /* empty */                                                  { with_pos $sloc `Any }
-| LBRACKET pattern RBRACKET                                    { $2 }
+| /* empty */                { with_pos $sloc `Any }
+| LBRACKET pattern RBRACKET  { $2 }
 
 perhaps_uinteger:
-| UINTEGER?                                                    { $1 }
+| UINTEGER?  { $1 }
 
 prefixop:
-| PREFIXOP                                                     { with_pos $loc $1 }
+| PREFIXOP  { with_pos $loc $1 }
 
 postfixop:
-| POSTFIXOP                                                    { with_pos $loc $1 }
+| POSTFIXOP  { with_pos $loc $1 }
 
 tlfunbinding:
-| FUN var arg_lists perhaps_location block                     { ($2, `Unl, ($3, (with_pos $loc($5) (`Block $5))), $4) }
-| LINFUN var arg_lists perhaps_location block                  { ($2, `Lin, ($3, (with_pos $loc($5) (`Block $5))), $4) }
-| OP pattern op pattern perhaps_location block                 { ($3, `Unl, ([[$2; $4]], with_pos $loc($6) (`Block $6)), $5) }
-| OP prefixop pattern perhaps_location block                   { ($2, `Unl, ([[$3]], with_pos $loc($5) (`Block $5)), $4) }
-| OP pattern postfixop perhaps_location block                  { ($3, `Unl, ([[$2]], with_pos $loc($5) (`Block $5)), $4) }
+| FUN var arg_lists perhaps_location block
+  { ($2, `Unl, ($3, (with_pos $loc($5) (`Block $5))), $4) }
+| LINFUN var arg_lists perhaps_location block
+  { ($2, `Lin, ($3, (with_pos $loc($5) (`Block $5))), $4) }
+| OP pattern op pattern perhaps_location block
+  { ($3, `Unl, ([[$2; $4]], with_pos $loc($6) (`Block $6)), $5) }
+| OP prefixop pattern perhaps_location block
+  { ($2, `Unl, ([[$3]], with_pos $loc($5) (`Block $5)), $4) }
+| OP pattern postfixop perhaps_location block
+  { ($3, `Unl, ([[$2]], with_pos $loc($5) (`Block $5)), $4) }
 
 tlvarbinding:
-| VAR var perhaps_location EQ exp                              { ($2, $5, $3) }
+| VAR var perhaps_location EQ exp  { ($2, $5, $3) }
 
 signature:
-| SIG var COLON datatype                                       { ($2, datatype $4) }
-| SIG op COLON datatype                                        { ($2, datatype $4) }
+| SIG var COLON datatype | SIG op COLON datatype  { ($2, datatype $4) }
 
 typedecl:
-| TYPENAME CONSTRUCTOR typeargs_opt EQ datatype                { with_pos $loc (`Type ($2, $3, datatype $5)) }
+| TYPENAME CONSTRUCTOR typeargs_opt EQ datatype
+  { with_pos $loc (`Type ($2, $3, datatype $5)) }
 
 typeargs_opt:
-| /* empty */                                                  { [] }
-| LPAREN varlist RPAREN                                        { $2 }
+| /* empty */             { [] }
+| LPAREN varlist RPAREN   { $2 }
 
 kind:
 | COLONCOLON CONSTRUCTOR LPAREN CONSTRUCTOR COMMA CONSTRUCTOR RPAREN
-                                                               { full_kind_of $loc $2 $4 $6 }
-| COLONCOLON CONSTRUCTOR                                       { kind_of $loc($2) $2        }
+  { full_kind_of $loc $2 $4 $6 }
+| COLONCOLON CONSTRUCTOR
+  { kind_of $loc($2) $2        }
 
 subkind:
-| COLONCOLON LPAREN CONSTRUCTOR COMMA CONSTRUCTOR RPAREN       { full_subkind_of $loc $3 $5 }
-| COLONCOLON CONSTRUCTOR                                       { subkind_of $loc($2) $2     }
+| COLONCOLON LPAREN CONSTRUCTOR COMMA CONSTRUCTOR RPAREN
+  { full_subkind_of $loc $3 $5 }
+| COLONCOLON CONSTRUCTOR
+  { subkind_of $loc($2) $2     }
 
 typearg:
-| VARIABLE                                                     { (($1, (`Type, None), `Rigid), None) }
-| VARIABLE kind                                                { (attach_kind ($1, $2), None)        }
+| VARIABLE       { (($1, (`Type, None), `Rigid), None) }
+| VARIABLE kind  { (attach_kind ($1, $2), None)        }
 
 varlist:
-| separated_nonempty_list(COMMA, typearg)                      { $1 }
+| separated_nonempty_list(COMMA, typearg)  { $1 }
 
 fixity:
-| INFIX                                                        { (`None , $1) }
-| INFIXL                                                       { (`Left , $1) }
-| INFIXR                                                       { (`Right, $1) }
-| PREFIX                                                       { (`Pre  , $1) }
-| POSTFIX                                                      { (`Post , $1) }
+| INFIX        { (`None , $1) }
+| INFIXL       { (`Left , $1) }
+| INFIXR       { (`Right, $1) }
+| PREFIX       { (`Pre  , $1) }
+| POSTFIX      { (`Post , $1) }
 
 perhaps_location:
-| SERVER                                                       { `Server  }
-| CLIENT                                                       { `Client  }
-| NATIVE                                                       { `Native  }
-| /* empty */                                                  { `Unknown }
+| SERVER       { `Server  }
+| CLIENT       { `Client  }
+| NATIVE       { `Native  }
+| /* empty */  { `Unknown }
 
 constant:
-| UINTEGER                                                     { `Int    $1  }
-| UFLOAT                                                       { `Float  $1  }
-| STRING                                                       { `String $1  }
-| TRUE                                                         { `Bool true  }
-| FALSE                                                        { `Bool false }
-| CHAR                                                         { `Char $1    }
+| UINTEGER     { `Int    $1  }
+| UFLOAT       { `Float  $1  }
+| STRING       { `String $1  }
+| TRUE         { `Bool true  }
+| FALSE        { `Bool false }
+| CHAR         { `Char $1    }
 
 qualified_name:
-| CONSTRUCTOR DOT qualified_name_inner                         { $1 :: $3 }
+| CONSTRUCTOR DOT qualified_name_inner    { $1 :: $3 }
 
 qualified_name_inner:
-| CONSTRUCTOR DOT qualified_name_inner                         { $1 :: $3 }
-| VARIABLE                                                     { [$1]     }
+| CONSTRUCTOR DOT qualified_name_inner    { $1 :: $3 }
+| VARIABLE                                { [$1]     }
 
 qualified_type_name:
-| CONSTRUCTOR DOT separated_nonempty_list(DOT, CONSTRUCTOR)    { $1 :: $3 }
+| CONSTRUCTOR DOT separated_nonempty_list(DOT, CONSTRUCTOR)   { $1 :: $3 }
 
 atomic_expression:
-| qualified_name                                               { with_pos $loc (`QualifiedVar $1) }
-| VARIABLE                                                     { with_pos $loc (`Var          $1) }
-| constant                                                     { with_pos $loc (`Constant     $1) }
-| parenthesized_thing                                          { $1 }
+| qualified_name       { with_pos $loc (`QualifiedVar $1) }
+| VARIABLE             { with_pos $loc (`Var          $1) }
+| constant             { with_pos $loc (`Constant     $1) }
+| parenthesized_thing  { $1 }
 /* HACK: allows us to support both mailbox receive syntax
 and receive for session types. */
-| RECEIVE                                                      { with_pos $loc (`Var "receive") }
+| RECEIVE              { with_pos $loc (`Var "receive") }
 
 cp_name:
 | VARIABLE                                                     { make_untyped_binder (with_pos $loc $1) }
