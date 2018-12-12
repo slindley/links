@@ -1174,8 +1174,8 @@ forall_datatype:
 | FORALL varlist DOT datatype  { `Forall (List.map fst $2, $4) }
 | session_datatype             { $1 }
 
-/* Parenthesised dts disambiguate between sending qualified types and recursion variables.
-   e.g:
+/* Parenthesised dts disambiguate between sending qualified types and recursion
+   variables, e.g.:
 
      S = !ModuleA.ModuleB.Type.S
      should be written
