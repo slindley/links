@@ -1287,61 +1287,61 @@ rfield:
    the type (a,b,c) a record with fields a, b, c or a polymorphic tuple
    with type variables a, b, c?
 */
-| record_label fieldspec                                       { ($1, $2) }
+| record_label fieldspec        { ($1, $2) }
 
 record_label:
-| field_label                                                  { $1 }
+| field_label                   { $1 }
 
 vfields:
-| vfield                                                       { ([$1]      , `Closed) }
-| row_var                                                      { ([]        , $1     ) }
-| kinded_row_var                                               { ([]        , $1     ) }
-| vfield VBAR vfields                                          { ($1::fst $3, snd $3 ) }
+| vfield                        { ([$1]      , `Closed) }
+| row_var                       { ([]        , $1     ) }
+| kinded_row_var                { ([]        , $1     ) }
+| vfield VBAR vfields           { ($1::fst $3, snd $3 ) }
 
 vfield:
-| CONSTRUCTOR                                                  { ($1, present) }
-| CONSTRUCTOR fieldspec                                        { ($1, $2)      }
+| CONSTRUCTOR                   { ($1, present) }
+| CONSTRUCTOR fieldspec         { ($1, $2)      }
 
 efields:
 | fields_def(efield, nonrec_row_var, kinded_nonrec_row_var)    { $1 }
 
 efield:
-| effect_label                                                 { ($1, present) }
-| effect_label fieldspec                                       { ($1, $2)      }
+| effect_label                  { ($1, present) }
+| effect_label fieldspec        { ($1, $2)      }
 
 effect_label:
-| CONSTRUCTOR                                                  { $1 }
-| VARIABLE                                                     { $1 }
+| CONSTRUCTOR                   { $1 }
+| VARIABLE                      { $1 }
 
 fieldspec:
-| COLON datatype                                               { `Present $2 }
-| LBRACE COLON datatype RBRACE                                 { `Present $3 }
-| MINUS                                                        { `Absent }
-| LBRACE MINUS RBRACE                                          { `Absent }
-| LBRACE VARIABLE RBRACE                                       { `Var ($2, None, `Rigid) }
-| LBRACE PERCENTVAR RBRACE                                     { `Var ($2, None, `Flexible) }
-| LBRACE UNDERSCORE RBRACE                                     { fresh_rigid_presence_variable None }
-| LBRACE PERCENT RBRACE                                        { fresh_presence_variable None }
+| COLON datatype                { `Present $2 }
+| LBRACE COLON datatype RBRACE  { `Present $3 }
+| MINUS                         { `Absent }
+| LBRACE MINUS RBRACE           { `Absent }
+| LBRACE VARIABLE RBRACE        { `Var ($2, None, `Rigid) }
+| LBRACE PERCENTVAR RBRACE      { `Var ($2, None, `Flexible) }
+| LBRACE UNDERSCORE RBRACE      { fresh_rigid_presence_variable None }
+| LBRACE PERCENT RBRACE         { fresh_presence_variable None }
 
 nonrec_row_var:
-| VARIABLE                                                     { `Open ($1, None, `Rigid   )   }
-| PERCENTVAR                                                   { `Open ($1, None, `Flexible)   }
-| UNDERSCORE                                                   { fresh_rigid_row_variable None }
-| PERCENT                                                      { fresh_row_variable None       }
+| VARIABLE                      { `Open ($1, None, `Rigid   )   }
+| PERCENTVAR                    { `Open ($1, None, `Flexible)   }
+| UNDERSCORE                    { fresh_rigid_row_variable None }
+| PERCENT                       { fresh_row_variable None       }
 
 /* FIXME:
  *
  * recursive row vars shouldn't be restricted to vfields.
  */
 row_var:
-| nonrec_row_var                                               { $1 }
-| LPAREN MU VARIABLE DOT vfields RPAREN                        { `Recursive ($3, $5) }
+| nonrec_row_var                          { $1 }
+| LPAREN MU VARIABLE DOT vfields RPAREN   { `Recursive ($3, $5) }
 
 kinded_nonrec_row_var:
-| nonrec_row_var subkind                                       { attach_row_subkind ($1, $2) }
+| nonrec_row_var subkind                  { attach_row_subkind ($1, $2) }
 
 kinded_row_var:
-| row_var subkind                                              { attach_row_subkind ($1, $2) }
+| row_var subkind                         { attach_row_subkind ($1, $2) }
 
 /*
  * Regular expression grammar
