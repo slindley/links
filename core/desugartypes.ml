@@ -1,6 +1,7 @@
 open CommonTypes
 open Operators
 open Utility
+open SourceCode
 open Sugartypes
 
 module Datatype = struct
@@ -60,8 +61,8 @@ module Pattern = struct
     | Record   of (name * with_pos) list * with_pos option
     | Tuple    of with_pos list
     | Constant of Constant.t
-    | Variable of binder
-    | As       of binder * with_pos
+    | Variable of Binder.t
+    | As       of Binder.t * with_pos
     | HasType  of with_pos * datatype'
   and with_pos = t WithPos.t
    [@@deriving show]
@@ -129,7 +130,7 @@ and phrasenode =
   | Iteration        of iterpatt list * phrase
                         * (*where:*)   phrase option
                         * (*orderby:*) phrase option
-  | Escape           of binder * phrase
+  | Escape           of Binder.t * phrase
   | Section          of Section.t
   | Conditional      of phrase * phrase * phrase
   | Block            of block_body
@@ -188,26 +189,26 @@ and phrasenode =
   | TryInOtherwise   of (phrase * Pattern.with_pos * phrase * phrase *
                            Types.datatype option)
   | Raise
-and phrase = phrasenode with_pos
+and phrase = phrasenode WithPos.t
 and bindingnode =
   | Val     of (Pattern.with_pos * (tyvar list * phrase) * Location.t *
                   datatype' option)
-  | Fun     of (binder * DeclaredLinearity.t * (tyvar list * funlit) * Location.t *
-                  datatype' option)
-  | Funs    of (binder * DeclaredLinearity.t *
+  | Fun     of (Binder.t * DeclaredLinearity.t * (tyvar list * funlit) *
+                  Location.t * datatype' option)
+  | Funs    of (Binder.t * DeclaredLinearity.t *
                   ((tyvar list *
                    (Types.datatype * Types.quantifier option list) option)
-                   * funlit) * Location.t * datatype' option * position) list
-  | Handler of (binder * handlerlit * datatype' option)
-  | Foreign of (binder * name * name * name * datatype')
+                   * funlit) * Location.t * datatype' option * Position.t) list
+  | Handler of (Binder.t * handlerlit * datatype' option)
+  | Foreign of (Binder.t * name * name * name * datatype')
                (* Binder, raw function name, language, external file, type *)
   | QualifiedImport of name list
   | Type    of (name * (quantifier * tyvar option) list * datatype')
   | Infix
   | Exp     of phrase
   | Module  of (name * binding list)
-  | AlienBlock of (name * name * ((binder * datatype') list))
-and binding = bindingnode with_pos
+  | AlienBlock of (name * name * ((Binder.t * datatype') list))
+and binding = bindingnode WithPos.t
 and block_body = binding list * phrase
                   [@@deriving show]
 
@@ -282,7 +283,8 @@ module Desugar = struct
          Datatype.Dual (with_pos wp)
       | Sugartypes.Datatype.End ->
          Datatype.End
-    and with_pos {node; pos} = {node=datatype node; pos}
+    and with_pos {WithPos.Legacy.node; pos} =
+      {WithPos.Legacy.node=datatype node; pos}
     and row = fun (fspecs, rvar) ->
       let fspecs' = List.map (fun (str, fsp) -> str, fieldspec fsp) fspecs in
       let rvar'   = row_var rvar in
@@ -333,7 +335,8 @@ module Desugar = struct
          Pattern.As (bndr, with_pos pat)
       | Sugartypes.Pattern.HasType (pat, ty) ->
          Pattern.HasType (with_pos pat,  datatype' ty)
-    and with_pos {node; pos} = {node=pattern node; pos}
+    and with_pos {WithPos.Legacy.node; pos} =
+      {WithPos.Legacy.node=pattern node; pos}
   end
 
   let rec replace_rhs : Sugartypes.replace_rhs -> replace_rhs = function
@@ -519,7 +522,8 @@ module Desugar = struct
     | Sugartypes.CP _ -> assert false
   and phrase_opt : Sugartypes.phrase option -> phrase option =
     fun phr_opt -> OptionUtils.opt_map (fun phr -> phrase phr) phr_opt
-  and phrase {node; pos} = {node=phrasenode node; pos}
+  and phrase {WithPos.Legacy.node; pos} =
+    {WithPos.Legacy.node=phrasenode node; pos}
   and phrases phrs = List.map phrase phrs
   and bindingnode : Sugartypes.bindingnode -> bindingnode = function
     | Sugartypes.Val (pat, (tvs, p), loc, ty') ->
@@ -550,7 +554,8 @@ module Desugar = struct
   | Sugartypes.AlienBlock (n1, n2, binds) ->
      AlienBlock (n1, n2, List.map (fun (bndr, ty) -> (bndr, datatype' ty))
                                   binds)
-  and binding {node; pos} = {node=bindingnode node; pos}
+  and binding {WithPos.Legacy.node; pos} =
+    {WithPos.Legacy.node=bindingnode node; pos}
   and block_body : Sugartypes.block_body -> block_body =
     fun (binds, body) -> (List.map binding binds, phrase body)
 
