@@ -6,12 +6,12 @@ sig
     Types.typing_environment ->
     SourceCode.source_code ->
     Sugartypes.program ->
-    ((Sugartypes.program * Types.datatype * Types.typing_environment) * string list)
+    ((Desugartypes.program * Types.datatype * Types.typing_environment) * string list)
   val interactive :
     Types.typing_environment ->
     SourceCode.source_code ->
     Sugartypes.sentence ->
-    Sugartypes.sentence * Types.datatype * Types.typing_environment
+    Desugartypes.sentence * Types.datatype * Types.typing_environment
 end
 =
 struct
@@ -71,7 +71,8 @@ struct
        ->- after_typing ((DesugarRegexes.desugar_regexes tyenv)#program ->- snd3)
        ->- after_typing ((DesugarFormlets.desugar_formlets tyenv)#program ->- snd3)
        ->- after_typing ((DesugarPages.desugar_pages tyenv)#program ->- snd3)
-       ->- after_typing ((DesugarFuns.desugar_funs tyenv)#program ->- snd3))
+       ->- after_typing ((DesugarFuns.desugar_funs tyenv)#program ->- snd3)
+       ->- after_typing Desugartypes.Desugar.program)
         program), ffi_files)
 
 
@@ -94,5 +95,6 @@ struct
        ->- after_typing ((DesugarRegexes.desugar_regexes tyenv)#sentence ->- snd)
        ->- after_typing ((DesugarFormlets.desugar_formlets tyenv)#sentence ->- snd)
        ->- after_typing ((DesugarPages.desugar_pages tyenv)#sentence ->- snd)
-       ->- after_typing ((DesugarFuns.desugar_funs tyenv)#sentence ->- snd)) sentence
+       ->- after_typing ((DesugarFuns.desugar_funs tyenv)#sentence ->- snd)
+       ->- after_typing Desugartypes.Desugar.sentence) sentence
 end
