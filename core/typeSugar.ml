@@ -2375,7 +2375,7 @@ let rec type_check : context -> phrase -> phrase * Types.datatype * usagemap =
            let open Lens in
            let table = tc table in
            let cols = Types.sort_cols_of_table "" (typ table) in
-           let keys = Types.cols_of_phrase keys in
+           let keys = Types.cols_of_phrase' keys in
            let fds = Fun_dep.Set.key_fds ~keys ~cols:(Column.List.present_aliases cols) in
            let lens_sort = Sort.make ~fds cols in
            LensLit (erase table, Some (lens_sort)), `Lens (lens_sort), merge_usages [usages table]
@@ -2410,7 +2410,7 @@ let rec type_check : context -> phrase -> phrase * Types.datatype * usagemap =
              Lens.Sort.join_lens_sort
                sort1
                sort2
-               ~on:(Lens.Types.cols_of_phrase on)
+               ~on:(Lens.Types.cols_of_phrase' on)
            in
            LensJoinLit (erase lens1, erase lens2, on, left, right, Some sort), `Lens(sort), merge_usages [usages lens1; usages lens2]
         | LensGetLit (lens, _) ->

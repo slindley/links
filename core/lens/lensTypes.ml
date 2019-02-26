@@ -2,7 +2,6 @@ open Types
 open Utility
 open Lens_types
 open SourceCode
-open Sugartypes
 
 module Phrase = Lens_phrase
 
@@ -38,15 +37,27 @@ let sort_cols_of_table (tableName : string) (t : Types.typ) =
     let rt = extract_record_type t in
     sort_cols_of_record tableName rt
 
-let var_name (var : phrase) =
+let var_name (var : Desugartypes.phrase) =
     match WithPos.node var with
-    | Var name -> name
+    | Desugartypes.Var name -> name
     | _ -> failwith "Expected a `Var type"
 
-let cols_of_phrase (key : phrase) : string list =
+let cols_of_phrase (key : Desugartypes.phrase) : string list =
     match WithPos.node key with
-    | TupleLit keys -> List.map var_name keys
-    | Var name -> [name]
+    | Desugartypes.TupleLit keys -> List.map var_name keys
+    | Desugartypes.Var name -> [name]
+    | _ -> failwith "Expected a tuple or a variable."
+
+(* JSTOLAREK: workaround by duplicating functions that work on De/Sugartypes *)
+let var_name' (var : Sugartypes.phrase) =
+    match WithPos.node var with
+    | Sugartypes.Var name -> name
+    | _ -> failwith "Expected a `Var type"
+
+let cols_of_phrase' (key : Sugartypes.phrase) : string list =
+    match WithPos.node key with
+    | Sugartypes.TupleLit keys -> List.map var_name' keys
+    | Sugartypes.Var name -> [name]
     | _ -> failwith "Expected a tuple or a variable."
 
 let select_lens_sort (sort : Lens_sort.t) (pred : lens_phrase) : Lens_sort.t =

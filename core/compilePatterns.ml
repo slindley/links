@@ -93,7 +93,7 @@ let lookup_name name (nenv, _tenv, _eff, _penv) =
 
 let lookup_effects (_nenv, _tenv, eff, _penv) = eff
 
-let rec desugar_pattern : Ir.scope -> Sugartypes.Pattern.with_pos -> Pattern.t * raw_env =
+let rec desugar_pattern : Ir.scope -> Desugartypes.Pattern.with_pos -> Pattern.t * raw_env =
   fun scope {WithPos.node=p; pos} ->
     let desugar_pat = desugar_pattern scope in
     let empty = (NEnv.empty, TEnv.empty, Types.make_empty_open_row (lin_any, res_any)) in
@@ -105,7 +105,7 @@ let rec desugar_pattern : Ir.scope -> Sugartypes.Pattern.with_pos -> Pattern.t *
       let xb, x = Var.fresh_var (t, name, scope) in
       xb, (NEnv.bind nenv (name, x), TEnv.bind tenv (x, t), eff)
     in
-      let open Sugartypes.Pattern in
+      let open Desugartypes.Pattern in
       match p with
         | Any -> Pattern.Any, empty
         | Nil -> Pattern.Nil, empty
@@ -921,7 +921,7 @@ let compile_handle_parameters : raw_env -> (Ir.computation * Pattern.t * Types.d
       parameters ([], ((fun x -> x), []))
 
 let compile_handle_cases
-    : raw_env -> (raw_clause list * raw_clause list * (Ir.computation * Pattern.t * Types.datatype) list * Sugartypes.handler_descriptor) -> Ir.computation -> Ir.computation =
+    : raw_env -> (raw_clause list * raw_clause list * (Ir.computation * Pattern.t * Types.datatype) list * Desugartypes.handler_descriptor) -> Ir.computation -> Ir.computation =
   fun (nenv, tenv, eff) (raw_value_clauses, raw_effect_clauses, params, desc) m ->
   (* Observation: reduced continuation patterns are always trivial,
      i.e. a reduced continuation pattern is either a variable or a
@@ -948,7 +948,7 @@ let compile_handle_cases
     if List.length raw_effect_clauses = 0 then
       StringMap.empty
     else begin
-        let (comp_eff, comp_ty, _, _) = Sugartypes.(desc.shd_types) in
+        let (comp_eff, comp_ty, _, _) = Desugartypes.(desc.shd_types) in
         let variant_type =
           let (fields,_,_) = comp_eff in
           let fields' =
@@ -1065,7 +1065,7 @@ let compile_handle_cases
       end
   in
   let return : binder * computation =
-    let (_, comp_ty, _, _) = Sugartypes.(desc.shd_types) in
+    let (_, comp_ty, _, _) = Desugartypes.(desc.shd_types) in
     let scrutinee = Var.(make_local_info ->- fresh_binder) (comp_ty, "_return_value") in
     let tenv = TEnv.bind tenv (Var.var_of_binder scrutinee, comp_ty) in
     let initial_env = (nenv, tenv, eff, PEnv.empty) in
@@ -1079,7 +1079,7 @@ let compile_handle_cases
         ih_return = return;
         ih_cases  = compiled_effect_cases;
         ih_depth  =
-          let open Sugartypes in
+          let open Desugartypes in
           match desc.shd_depth  with
           | Shallow -> Ir.Shallow
           | Deep    -> Ir.Deep params

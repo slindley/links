@@ -48,5 +48,6 @@ let program =
       let sugar, pos_context = Parse.parse_string ~pp:(Settings.get_value Basicsettings.pp) Parse.program code in
       let (program, _, _), _ = Frontend.Pipeline.program tyenv pos_context sugar in
         program
-    in
+    in (* JSTOLAREK: a temporary workaround by disabling dumper alltogether.  To
+          fix it we need SugerTraversals for Desugartypes. *)
       (dumper#program (assert false))#get_vars()
