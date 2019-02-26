@@ -3,6 +3,7 @@ open Operators
 open Utility
 open SourceCode
 open SourceCode.WithPos
+open Sugartypes.Binder
 open Ir
 
 (* {0 Sugar To IR}
@@ -137,7 +138,7 @@ sig
                          (CompilePatterns.pattern * (env -> tail_computation sem)) list *
                          (CompilePatterns.pattern * (env -> tail_computation sem)) list *
                          ((env -> tail_computation sem) * CompilePatterns.pattern * Types.datatype) list *
-                          Sugartypes.handler_descriptor)
+                          Desugartypes.handler_descriptor)
                -> tail_computation sem
 
   val switch : env -> (value sem * (CompilePatterns.pattern * (env -> tail_computation sem)) list * Types.datatype) -> tail_computation sem
@@ -686,7 +687,7 @@ struct
     in
     let comp = reify m in
     let (bs, tc) = CompilePatterns.compile_handle_cases env (val_cases, eff_cases, params, desc) comp in
-    let (_,_,_,t) = desc.Sugartypes.shd_types in
+    let (_,_,_,t) = desc.Desugartypes.shd_types in
     reflect (bs, (tc, t))
 
   let switch env (v, cases, t) =
@@ -726,7 +727,7 @@ struct
 
   let (++) (nenv, tenv, _) (nenv', tenv', eff') = (NEnv.extend nenv nenv', TEnv.extend tenv tenv', eff')
 
-  let rec eval : env -> Sugartypes.phrase -> tail_computation I.sem =
+  let rec eval : env -> Desugartypes.phrase -> tail_computation I.sem =
     fun env {node=e; pos} ->
       let lookup_var name =
         let x, xt = lookup_name_and_type name env in
@@ -747,7 +748,7 @@ struct
                       failwith "fatal internal error" in
 
       let rec is_pure_primitive e =
-        let open Sugartypes in
+        let open Desugartypes in
         match WithPos.node e with
           | TAbstr (_, e)
           | TAppl (e, _) -> is_pure_primitive e
@@ -760,7 +761,7 @@ struct
       let ec = eval env in
       let ev = evalv env in
       let evs = List.map ev in
-        let open Sugartypes in
+        let open Desugartypes in
         match e with
           | Constant c -> cofv (I.constant c)
           | Var x -> cofv (I.var (lookup_name_and_type x env))
@@ -771,9 +772,9 @@ struct
           | ListLit (e::es, Some t) ->
               cofv (I.apply_pure(instantiate "Cons" [`Type t; `Row eff],
                                  [ev e; ev (WithPos.make ~pos (ListLit (es, Some t)))]))
-          | Escape (bndr, body) when Binder.has_type bndr ->
-             let k  = Binder.to_name bndr in
-             let kt = Binder.to_type_exn bndr in
+          | Escape (bndr, body) when has_type bndr ->
+             let k  = to_name bndr in
+             let kt = to_type_exn bndr in
              I.escape ((kt, k, `Local), eff, fun v -> eval (extend [k] [(v, kt)] env) body)
           | Section (Section.Minus) -> cofv (lookup_var "-")
           | Section (Section.FloatMinus) -> cofv (lookup_var "-.")
@@ -1059,8 +1060,7 @@ struct
           | HandlerLit _
           | DoOperation _
           | TryInOtherwise _
-          | Raise
-          | CP _ ->
+          | Raise ->
               Debug.print ("oops: " ^ show_phrasenode e);
               assert false
 
@@ -1071,12 +1071,12 @@ struct
         | [] -> ec e
         | { node = b; _ }::bs ->
             begin
-              let open Sugartypes in
+              let open Desugartypes in
               match b with
                 | Val ({node=Pattern.Variable bndr; _}, (_, body), _, _)
-                     when Binder.has_type bndr ->
-                    let x  = Binder.to_name bndr in
-                    let xt = Binder.to_type_exn bndr in
+                     when has_type bndr ->
+                    let x  = to_name bndr in
+                    let xt = to_type_exn bndr in
                     let x_info = (xt, x, scope) in
                       I.letvar
                         (x_info,
@@ -1090,9 +1090,9 @@ struct
                     let ss = eval_bindings scope env' bs e in
                       I.comp env (p, s, ss)
                 | Fun (bndr, _, (tyvars, ([ps], body)), location, _)
-                     when Binder.has_type bndr ->
-                    let f  = Binder.to_name bndr in
-                    let ft = Binder.to_type_exn bndr in
+                     when has_type bndr ->
+                    let f  = to_name bndr in
+                    let ft = to_type_exn bndr in
                     let ps, body_env =
                       List.fold_right
                         (fun p (ps, body_env) ->
@@ -1111,8 +1111,8 @@ struct
                     let fs, inner_fts, outer_fts =
                       List.fold_right
                         (fun (bndr, _, ((_tyvars, inner_opt), _), _, _, _) (fs, inner_fts, outer_fts) ->
-                          let f = Binder.to_name bndr in
-                          let outer  = Binder.to_type_exn bndr in
+                          let f = to_name bndr in
+                          let outer  = to_type_exn bndr in
                           let (inner, _) = OptionUtils.val_of inner_opt in
                               (f::fs, inner::inner_fts, outer::outer_fts))
                         defs
@@ -1121,8 +1121,8 @@ struct
                       List.map
                         (fun (bndr, _, ((tyvars, _), (pss, body)), location, _, _) ->
                           assert (List.length pss = 1);
-                          let f  = Binder.to_name bndr in
-                          let ft = Binder.to_type_exn bndr in
+                          let f  = to_name bndr in
+                          let ft = to_type_exn bndr in
                           let ps = List.hd pss in
                            let ps, body_env =
                              List.fold_right
@@ -1137,9 +1137,9 @@ struct
                     in
                       I.letrec env defs (fun vs -> eval_bindings scope (extend fs (List.combine vs outer_fts) env) bs e)
                 | Foreign (bndr, raw_name, language, _file, _)
-                     when Binder.has_type bndr ->
-                    let x  = Binder.to_name bndr in
-                    let xt = Binder.to_type_exn bndr in
+                     when has_type bndr ->
+                    let x  = to_name bndr in
+                    let xt = to_type_exn bndr in
                     I.alien ((xt, x, scope), raw_name, language, fun v -> eval_bindings scope (extend [x] [(v, xt)] env) bs e)
                 | Type _
                 | Infix ->
@@ -1206,10 +1206,10 @@ struct
 
   let compile env (bindings, body) =
     Debug.print ("compiling to IR");
-(*     Debug.print (Sugartypes.show_program (bindings, body)); *)
+(*     Debug.print (Desugartypes.show_program (bindings, body)); *)
     let body =
       match body with
-        | None -> WithPos.dummy (Sugartypes.RecordLit ([], None))
+        | None -> WithPos.dummy (Desugartypes.RecordLit ([], None))
         | Some body -> body in
       let s = eval_bindings `Global env bindings body in
         let r = (I.reify s) in
@@ -1220,17 +1220,17 @@ end
 
 module C = Eval(Interpretation(BindingListMonad))
 
-let desugar_expression : env -> Sugartypes.phrase -> Ir.computation =
+let desugar_expression : env -> Desugartypes.phrase -> Ir.computation =
   fun env e ->
     let (bs, body), _ = C.compile env ([], Some e) in
       (bs, body)
 
-let desugar_program : env -> Sugartypes.program -> Ir.binding list * Ir.computation * nenv =
+let desugar_program : env -> Desugartypes.program -> Ir.binding list * Ir.computation * nenv =
   fun env p ->
     let (bs, body), _ = C.compile env p in
       C.partition_program (bs, body)
 
-let desugar_definitions : env -> Sugartypes.binding list -> Ir.binding list * nenv =
+let desugar_definitions : env -> Desugartypes.binding list -> Ir.binding list * nenv =
   fun env bs ->
     let globals, _, nenv = desugar_program env (bs, None) in
       globals, nenv

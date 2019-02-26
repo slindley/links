@@ -93,11 +93,9 @@ and funlit = Pattern.with_pos list list * phrase
 and handlerlit =
   handler_depth * Pattern.with_pos * clause list *
     Pattern.with_pos list list option (* computation arg, cases, parameters *)
-and handler = {
-  sh_expr: phrase;
-  sh_effect_cases: clause list;
-  sh_value_cases: clause list;
-  sh_descr: handler_descriptor
+and handler_parameterisation = {
+  shp_bindings: (phrase * Pattern.with_pos) list;
+  shp_types: Types.datatype list
 }
 and handler_descriptor = {
   shd_depth: handler_depth;
@@ -105,9 +103,11 @@ and handler_descriptor = {
   shd_raw_row: Types.row;
   shd_params: handler_parameterisation option
 }
-and handler_parameterisation = {
-  shp_bindings: (phrase * Pattern.with_pos) list;
-  shp_types: Types.datatype list
+and handler = {
+  sh_expr: phrase;
+  sh_effect_cases: clause list;
+  sh_value_cases: clause list;
+  sh_descr: handler_descriptor
 }
 and iterpatt =
   | List  of (Pattern.with_pos * phrase)
@@ -283,8 +283,7 @@ module Desugar = struct
          Datatype.Dual (with_pos wp)
       | Sugartypes.Datatype.End ->
          Datatype.End
-    and with_pos {WithPos.Legacy.node; pos} =
-      {WithPos.Legacy.node=datatype node; pos}
+    and with_pos {WithPos.node; pos} = WithPos.make ~pos (datatype node)
     and row = fun (fspecs, rvar) ->
       let fspecs' = List.map (fun (str, fsp) -> str, fieldspec fsp) fspecs in
       let rvar'   = row_var rvar in
@@ -335,8 +334,7 @@ module Desugar = struct
          Pattern.As (bndr, with_pos pat)
       | Sugartypes.Pattern.HasType (pat, ty) ->
          Pattern.HasType (with_pos pat,  datatype' ty)
-    and with_pos {WithPos.Legacy.node; pos} =
-      {WithPos.Legacy.node=pattern node; pos}
+    and with_pos {WithPos.node; pos} = WithPos.make ~pos (pattern node)
   end
 
   let rec replace_rhs : Sugartypes.replace_rhs -> replace_rhs = function
@@ -522,8 +520,7 @@ module Desugar = struct
     | Sugartypes.CP _ -> assert false
   and phrase_opt : Sugartypes.phrase option -> phrase option =
     fun phr_opt -> OptionUtils.opt_map (fun phr -> phrase phr) phr_opt
-  and phrase {WithPos.Legacy.node; pos} =
-    {WithPos.Legacy.node=phrasenode node; pos}
+  and phrase {WithPos.node; pos} = WithPos.make ~pos (phrasenode node)
   and phrases phrs = List.map phrase phrs
   and bindingnode : Sugartypes.bindingnode -> bindingnode = function
     | Sugartypes.Val (pat, (tvs, p), loc, ty') ->
@@ -554,8 +551,7 @@ module Desugar = struct
   | Sugartypes.AlienBlock (n1, n2, binds) ->
      AlienBlock (n1, n2, List.map (fun (bndr, ty) -> (bndr, datatype' ty))
                                   binds)
-  and binding {WithPos.Legacy.node; pos} =
-    {WithPos.Legacy.node=bindingnode node; pos}
+  and binding {WithPos.node; pos} = WithPos.make ~pos (bindingnode node)
   and block_body : Sugartypes.block_body -> block_body =
     fun (binds, body) -> (List.map binding binds, phrase body)
 

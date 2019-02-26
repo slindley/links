@@ -1,5 +1,5 @@
 open Types
-open Sugartypes
+open Desugartypes
 
 type t = lens_phrase
 

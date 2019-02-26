@@ -26,18 +26,18 @@ let tuple_singleton v = tuple [v]
 
 let name_of_var expr =
   match WithPos.node expr with
-  | Sugartypes.Var n -> n
+  | Desugartypes.Var n -> n
   | _ -> failwith "Expected var."
 
 let of_phrase p =
   let rec f p =
     match WithPos.node p with
-    | Sugartypes.Constant c -> Constant c
-    | Sugartypes.Var v -> Var v
-    | Sugartypes.UnaryAppl ((_, op), phrase) -> UnaryAppl (Unary.from_links op, f phrase)
-    | Sugartypes.InfixAppl ((_, op), phrase1, phrase2) -> InfixAppl (Binary.of_supertype_operator op, f phrase1, f phrase2)
-    | Sugartypes.TupleLit l -> TupleLit (List.map f l)
-    | Sugartypes.FnAppl (fn, arg) ->
+    | Desugartypes.Constant c -> Constant c
+    | Desugartypes.Var v -> Var v
+    | Desugartypes.UnaryAppl ((_, op), phrase) -> UnaryAppl (Unary.from_links op, f phrase)
+    | Desugartypes.InfixAppl ((_, op), phrase1, phrase2) -> InfixAppl (Binary.of_supertype_operator op, f phrase1, f phrase2)
+    | Desugartypes.TupleLit l -> TupleLit (List.map f l)
+    | Desugartypes.FnAppl (fn, arg) ->
       begin
         match name_of_var fn with
         | "not" -> UnaryAppl ((Unary.Name "!"), f (List.hd arg))
