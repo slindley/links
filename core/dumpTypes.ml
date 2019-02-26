@@ -49,4 +49,4 @@ let program =
       let (program, _, _), _ = Frontend.Pipeline.program tyenv pos_context sugar in
         program
     in
-      (dumper#program program)#get_vars()
+      (dumper#program (assert false))#get_vars()
