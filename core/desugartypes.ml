@@ -202,12 +202,9 @@ and bindingnode =
   | Handler of (Binder.t * handlerlit * datatype' option)
   | Foreign of (Binder.t * name * name * name * datatype')
                (* Binder, raw function name, language, external file, type *)
-  | QualifiedImport of name list
   | Type    of (name * (quantifier * tyvar option) list * datatype')
   | Infix
   | Exp     of phrase
-  | Module  of (name * binding list)
-  | AlienBlock of (name * name * ((Binder.t * datatype') list))
 and binding = bindingnode WithPos.t
 and block_body = binding list * phrase
                   [@@deriving show]
@@ -538,19 +535,15 @@ module Desugar = struct
      Handler (bndr, handlerlit hlit, OptionUtils.opt_map datatype' ty')
   | Sugartypes.Foreign (bndr, n1, n2, n3, ty') ->
      Foreign (bndr, n1, n2, n3, datatype' ty')
-  | Sugartypes.QualifiedImport names ->
-     QualifiedImport names
   | Sugartypes.Type (n, tvs, ty') ->
      Type (n, tvs, datatype' ty')
   | Sugartypes.Infix ->
      Infix
   | Sugartypes.Exp p ->
      Exp (phrase p)
-  | Sugartypes.Module (n, binds) ->
-     Module (n, List.map binding binds)
-  | Sugartypes.AlienBlock (n1, n2, binds) ->
-     AlienBlock (n1, n2, List.map (fun (bndr, ty) -> (bndr, datatype' ty))
-                                  binds)
+  | Sugartypes.QualifiedImport _
+  | Sugartypes.Module _
+  | Sugartypes.AlienBlock _ -> assert false
   and binding {WithPos.node; pos} = WithPos.make ~pos (bindingnode node)
   and block_body : Sugartypes.block_body -> block_body =
     fun (binds, body) -> (List.map binding binds, phrase body)
