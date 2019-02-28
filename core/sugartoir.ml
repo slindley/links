@@ -1024,8 +1024,6 @@ struct
           | LensJoinLit _
           | LensGetLit _
           | LensPutLit _
-          | LensFunDepsLit _
-          | LensKeysLit _
           | Offer _
           | DoOperation _ ->
               Debug.print ("oops: " ^ show_phrasenode e);

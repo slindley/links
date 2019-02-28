@@ -127,9 +127,6 @@ and phrasenode =
   | LensLit          of phrase * Types.lens_sort option
   (* the lens keys lit is a literal that takes an expression and is converted
      into a LensLit with the corresponding table keys marked in the lens_sort *)
-  | LensKeysLit      of phrase * phrase * Types.lens_sort option
-  | LensFunDepsLit   of phrase * (string list * string list) list *
-                          Types.lens_sort option
   | LensDropLit      of phrase * string * string * phrase *
                           Types.lens_sort option
   | LensSelectLit    of phrase * phrase * Types.lens_sort option
@@ -387,10 +384,6 @@ module Desugar = struct
                  List.map (fun (n,p) -> (n, phrase p)) exps)
     | Sugartypes.LensLit (phr, sort) ->
        LensLit (phrase phr, sort)
-    | Sugartypes.LensKeysLit (p1, p2, sort) ->
-       LensKeysLit (phrase p1, phrase p2, sort)
-    | Sugartypes.LensFunDepsLit (p1, fundeps, sort) ->
-       LensFunDepsLit (phrase p1, fundeps, sort)
     | Sugartypes.LensDropLit (p1, s1, s2, p2, sort) ->
        LensDropLit (phrase p1, s1, s2, phrase p2, sort)
     | Sugartypes.LensSelectLit (p1, p2, sort) ->
@@ -412,6 +405,8 @@ module Desugar = struct
     | Sugartypes.Offer (p, cases, ty) ->
        Offer (phrase p, List.map (fun (pat, case) ->
                             (Pattern.with_pos pat, phrase case)) cases, ty)
+    | Sugartypes.LensKeysLit _
+    | Sugartypes.LensFunDepsLit _
     | Sugartypes.QualifiedVar _
     | Sugartypes.FunLit _
     | Sugartypes.Page _
