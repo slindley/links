@@ -44,7 +44,7 @@ let program =
               o#use (x, o#lookup x, pos)
           | e -> super#phrase e
     end in
-    let program =
+    let _ =
       let sugar, pos_context = Parse.parse_string ~pp:(Settings.get_value Basicsettings.pp) Parse.program code in
       let (program, _, _), _ = Frontend.Pipeline.program tyenv pos_context sugar in
         program

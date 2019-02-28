@@ -1010,19 +1010,9 @@ struct
                 I.offer env (ev e, cases, t)
 
                   (* These things should all have been desugared already *)
-          | Spawn _
-          | Receive _
           | Section (Section.Project _)
           | FunLit _
-          | Iteration _
           | InfixAppl ((_, BinaryOp.RegexMatch _), _, _)
-          | DBInsert _
-          | Regex _
-          | Formlet _
-          | Page _
-          | FormletPlacement _
-          | PagePlacement _
-          | FormBinding _
           | ListLit _
           | Escape _
           | Upcast _
@@ -1039,10 +1029,7 @@ struct
           | LensKeysLit _
           | Offer _
           | QualifiedVar _
-          | HandlerLit _
-          | DoOperation _
-          | TryInOtherwise _
-          | Raise ->
+          | DoOperation _ ->
               Debug.print ("oops: " ^ show_phrasenode e);
               assert false
 
@@ -1128,7 +1115,7 @@ struct
                     (* Ignore type alias and infix declarations - they
                        shouldn't be needed in the IR *)
                     eval_bindings scope env bs e
-                | Handler _ | Fun _ | Foreign _ -> assert false
+                | Fun _ | Foreign _ -> assert false
             end
 
   and evalv env e =
