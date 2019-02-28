@@ -112,9 +112,6 @@ and handler = {
 and phrasenode =
   | Constant         of Constant.t
   | Var              of name
-  | QualifiedVar     of name list
-  | FunLit           of ((Types.datatype * Types.row) list) option *
-                          DeclaredLinearity.t * funlit * Location.t
   | Query            of (phrase * phrase) option * phrase *
                           Types.datatype option
   | RangeLit         of (phrase * phrase)
@@ -349,10 +346,6 @@ module Desugar = struct
        Constant c
     | Sugartypes.Var name ->
        Var name
-    | Sugartypes.QualifiedVar names ->
-       QualifiedVar names
-    | Sugartypes.FunLit (params, lin, flit, loc) ->
-       FunLit (params, lin, funlit flit, loc)
     | Sugartypes.Query (ph_opt, ph, ty_opt) ->
        let ph_opt' = OptionUtils.opt_map (fun (p1, p2) -> (phrase p1,
                                                            phrase p2)) ph_opt in
@@ -438,6 +431,8 @@ module Desugar = struct
     | Sugartypes.Offer (p, cases, ty) ->
        Offer (phrase p, List.map (fun (pat, case) ->
                             (Pattern.with_pos pat, phrase case)) cases, ty)
+    | Sugartypes.QualifiedVar _
+    | Sugartypes.FunLit _
     | Sugartypes.Page _
     | Sugartypes.FormletPlacement _
     | Sugartypes.PagePlacement _

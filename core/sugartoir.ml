@@ -1029,7 +1029,6 @@ struct
 
                   (* These things should all have been desugared already *)
           | Section (Section.Project _)
-          | FunLit _
           | InfixAppl ((_, BinaryOp.RegexMatch _), _, _)
           | ListLit _
           | Escape _
@@ -1046,7 +1045,6 @@ struct
           | LensFunDepsLit _
           | LensKeysLit _
           | Offer _
-          | QualifiedVar _
           | DoOperation _ ->
               Debug.print ("oops: " ^ show_phrasenode e);
               assert false
