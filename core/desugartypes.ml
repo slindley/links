@@ -87,31 +87,12 @@ module Pattern = struct
    [@@deriving show]
 end
 
-type replace_rhs =
-  | Literal     of string
-  | SpliceExpr  of phrase
-and given_spawn_location =
+type given_spawn_location =
   | ExplicitSpawnLocation of phrase (* spawnAt function *)
   | SpawnClient (* spawnClient function *)
   | NoSpawnLocation (* spawn function *)
-and regex =
-  | Range     of (char * char)
-  | Simply    of string
-  | Quote     of regex
-  | Any
-  | StartAnchor
-  | EndAnchor
-  | Seq       of regex list
-  | Alternate of (regex * regex)
-  | Group     of regex
-  | Repeat    of (Regex.repeat * regex)
-  | Splice    of phrase
-  | Replace   of (regex * replace_rhs)
 and clause = Pattern.with_pos * phrase
 and funlit = Pattern.with_pos list list * phrase
-and handlerlit =
-  handler_depth * Pattern.with_pos * clause list *
-    Pattern.with_pos list list option (* computation arg, cases, parameters *)
 and handler_parameterisation = {
   shp_bindings: (phrase * Pattern.with_pos) list;
   shp_types: Types.datatype list
@@ -128,33 +109,21 @@ and handler = {
   sh_value_cases: clause list;
   sh_descr: handler_descriptor
 }
-and iterpatt =
-  | List  of (Pattern.with_pos * phrase)
-  | Table of (Pattern.with_pos * phrase)
 and phrasenode =
   | Constant         of Constant.t
   | Var              of name
   | QualifiedVar     of name list
   | FunLit           of ((Types.datatype * Types.row) list) option *
                           DeclaredLinearity.t * funlit * Location.t
-  | HandlerLit       of handlerlit
-  (* Spawn kind, expression referring to spawn location (client n, server...),
-      spawn block, row opt *)
-  | Spawn            of spawn_kind * given_spawn_location * phrase *
-                          Types.row option
   | Query            of (phrase * phrase) option * phrase *
                           Types.datatype option
   | RangeLit         of (phrase * phrase)
   | ListLit          of phrase list * Types.datatype option
-  | Iteration        of iterpatt list * phrase
-                        * (*where:*)   phrase option
-                        * (*orderby:*) phrase option
   | Escape           of Binder.t * phrase
   | Section          of Section.t
   | Conditional      of phrase * phrase * phrase
   | Block            of block_body
   | InfixAppl        of (tyarg list * BinaryOp.t) * phrase * phrase
-  | Regex            of regex
   | UnaryAppl        of (tyarg list * UnaryOp.t) * phrase
   | FnAppl           of phrase * phrase list
   | TAbstr           of tyvar list ref * phrase
@@ -170,13 +139,11 @@ and phrasenode =
   | Handle           of handler
   | Switch           of phrase * (Pattern.with_pos * phrase) list *
                           Types.datatype option
-  | Receive          of (Pattern.with_pos * phrase) list * Types.datatype option
   | DatabaseLit      of phrase * (phrase option * phrase option)
   | TableLit         of phrase * (Datatype.with_pos * (Types.datatype *
                            Types.datatype * Types.datatype) option) *
                           (name * fieldconstraint list) list * phrase * phrase
   | DBDelete         of Pattern.with_pos * phrase * phrase option
-  | DBInsert         of phrase * name list * phrase * phrase option
   | DBUpdate         of Pattern.with_pos * phrase * phrase option *
                           (name * phrase) list
   | LensLit          of phrase * Types.lens_sort option
@@ -195,19 +162,11 @@ and phrasenode =
   | Xml              of name * (name * (phrase list)) list * phrase option *
                           phrase list
   | TextNode         of string
-  | Formlet          of phrase * phrase
-  | Page             of phrase
-  | FormletPlacement of phrase * phrase * phrase
-  | PagePlacement    of phrase
-  | FormBinding      of phrase * Pattern.with_pos
   (* choose *)
   | Select           of name * phrase
   (* choice *)
   | Offer            of phrase * (Pattern.with_pos * phrase) list *
                           Types.datatype option
-  | TryInOtherwise   of (phrase * Pattern.with_pos * phrase * phrase *
-                           Types.datatype option)
-  | Raise
 and phrase = phrasenode WithPos.t
 and bindingnode =
   | Val     of (Pattern.with_pos * (tyvar list * phrase) * Location.t *
@@ -218,7 +177,6 @@ and bindingnode =
                   ((tyvar list *
                    (Types.datatype * Types.quantifier option list) option)
                    * funlit) * Location.t * datatype' option * Position.t) list
-  | Handler of (Binder.t * handlerlit * datatype' option)
   | Foreign of (Binder.t * name * name * name * datatype')
                (* Binder, raw function name, language, external file, type *)
   | Type    of (name * (quantifier * tyvar option) list * datatype')
@@ -353,38 +311,17 @@ module Desugar = struct
     and with_pos {WithPos.node; pos} = WithPos.make ~pos (pattern node)
   end
 
-  let rec replace_rhs : Sugartypes.replace_rhs -> replace_rhs = function
-    | Sugartypes.Literal    str -> Literal str
-    | Sugartypes.SpliceExpr phr -> SpliceExpr (phrase phr)
-  and given_spawn_location :
+  let rec given_spawn_location :
         Sugartypes.given_spawn_location -> given_spawn_location = function
     | Sugartypes.ExplicitSpawnLocation phr -> ExplicitSpawnLocation (phrase phr)
     | Sugartypes.SpawnClient               -> SpawnClient
     | Sugartypes.NoSpawnLocation           -> NoSpawnLocation
-  and regex : Sugartypes.regex -> regex = function
-    | Sugartypes.Range (start, stop)    -> Range (start, stop)
-    | Sugartypes.Simply str             -> Simply str
-    | Sugartypes.Quote rgx              -> Quote (regex rgx)
-    | Sugartypes.Any                    -> Any
-    | Sugartypes.StartAnchor            -> StartAnchor
-    | Sugartypes.EndAnchor              -> EndAnchor
-    | Sugartypes.Seq regexes            -> Seq (List.map regex regexes)
-    | Sugartypes.Alternate (rgx1, rgx2) -> Alternate (regex rgx1, regex rgx2)
-    | Sugartypes.Group rgx              -> Group (regex rgx)
-    | Sugartypes.Repeat (repeat, rgx)   -> Repeat (repeat, regex rgx)
-    | Sugartypes.Splice phr             -> Splice (phrase phr)
-    | Sugartypes.Replace (rgx, rhs)     -> Replace (regex rgx, replace_rhs rhs)
   and clause : Sugartypes.clause -> clause =
     fun (pat, phr) -> (Pattern.with_pos pat, phrase phr)
   and funlit : Sugartypes.funlit -> funlit =
     fun (patss, phr) ->
     let patss' = List.map (List.map Pattern.with_pos) patss in
     (patss', phrase phr)
-  and handlerlit : Sugartypes.handlerlit -> handlerlit =
-    fun (depth, pat, clauses, patss_opt) ->
-    let patss_opt' = OptionUtils.opt_map (List.map (List.map Pattern.with_pos))
-                                         patss_opt in
-    (depth, Pattern.with_pos pat, List.map clause clauses, patss_opt')
   and handler : Sugartypes.handler -> handler =
     fun {Sugartypes.sh_expr; Sugartypes.sh_effect_cases;
          Sugartypes.sh_value_cases; Sugartypes.sh_descr} ->
@@ -407,11 +344,6 @@ module Desugar = struct
                  shp_bindings
     ; shp_types
     }
-  and iterpatt : Sugartypes.iterpatt -> iterpatt = function
-    | Sugartypes.List (pat, phr) ->
-       List (Pattern.with_pos pat, phrase phr)
-    | Sugartypes.Table (pat, phr) ->
-       Table (Pattern.with_pos pat, phrase phr)
   and phrasenode : Sugartypes.phrasenode -> phrasenode = function
     | Sugartypes.Constant c ->
        Constant c
@@ -421,10 +353,6 @@ module Desugar = struct
        QualifiedVar names
     | Sugartypes.FunLit (params, lin, flit, loc) ->
        FunLit (params, lin, funlit flit, loc)
-    | Sugartypes.HandlerLit hlit ->
-       HandlerLit (handlerlit hlit)
-    | Sugartypes.Spawn (sp_kind, sp_loc, phr, row_opt) ->
-       Spawn (sp_kind, given_spawn_location sp_loc, phrase phr, row_opt)
     | Sugartypes.Query (ph_opt, ph, ty_opt) ->
        let ph_opt' = OptionUtils.opt_map (fun (p1, p2) -> (phrase p1,
                                                            phrase p2)) ph_opt in
@@ -433,9 +361,6 @@ module Desugar = struct
        RangeLit (phrase p1, phrase p2)
     | Sugartypes.ListLit (elems, ty_opt) ->
        ListLit (phrases elems, ty_opt)
-    | Sugartypes.Iteration (pats, gen, where_opt, orderby_opt) ->
-       Iteration (List.map iterpatt pats, phrase gen, phrase_opt where_opt  ,
-                  phrase_opt orderby_opt)
     | Sugartypes.Escape (bndr, phr) ->
        Escape (bndr, phrase phr)
     | Sugartypes.Section sec ->
@@ -446,8 +371,6 @@ module Desugar = struct
        Block (block_body blk)
     | Sugartypes.InfixAppl ((tyargs, op), arg1, arg2) ->
        InfixAppl ((tyargs, op), phrase arg1, phrase arg2)
-    | Sugartypes.Regex rgx ->
-       Regex (regex rgx)
     | Sugartypes.UnaryAppl ((tyargs, op), arg) ->
        UnaryAppl ((tyargs, op), phrase arg)
     | Sugartypes.FnAppl (fn, args) ->
@@ -478,18 +401,13 @@ module Desugar = struct
        Switch (phrase scrut, List.map (fun (pat, case) ->
                                  (Pattern.with_pos pat, phrase case)) cases,
                ty_opt)
-    | Sugartypes.Receive (cases, ty_opt) ->
-       Receive (List.map (fun (pat, case) ->
-                    (Pattern.with_pos pat, phrase case)) cases,
-               ty_opt)
     | Sugartypes.DatabaseLit (phr, (p1, p2)) ->
        DatabaseLit (phrase phr, (phrase_opt p1, phrase_opt p2))
     | Sugartypes.TableLit (phr, (dt, tys), constraints, p1, p2) ->
-       TableLit (phrase phr, (Datatype.with_pos dt, tys), constraints, phrase p1, phrase p2)
+       TableLit (phrase phr, (Datatype.with_pos dt, tys), constraints,
+                 phrase p1, phrase p2)
     | Sugartypes.DBDelete (pat, phr, phr_opt) ->
        DBDelete (Pattern.with_pos pat, phrase phr, phrase_opt phr_opt)
-    | Sugartypes.DBInsert (p1, names, p2, phr_opt) ->
-       DBInsert (phrase p1, names, phrase p2, phrase_opt phr_opt)
     | Sugartypes.DBUpdate (pat, p1, phr_opt, exps) ->
        DBUpdate (Pattern.with_pos pat, phrase p1, phrase_opt phr_opt,
                  List.map (fun (n,p) -> (n, phrase p)) exps)
@@ -515,24 +433,24 @@ module Desugar = struct
             phrases children)
     | Sugartypes.TextNode str ->
        TextNode str
-    | Sugartypes.Formlet (p1, p2) ->
-       Formlet (phrase p1, phrase p2)
-    | Sugartypes.Page p ->
-       Page (phrase p)
-    | Sugartypes.FormletPlacement (p1, p2, p3) ->
-       FormletPlacement (phrase p1, phrase p2, phrase p3)
-    | Sugartypes.PagePlacement p ->
-       PagePlacement (phrase p)
-    | Sugartypes.FormBinding (p, pat) ->
-       FormBinding (phrase p, Pattern.with_pos pat)
     | Sugartypes.Select (n, p) ->
        Select (n, phrase p)
     | Sugartypes.Offer (p, cases, ty) ->
        Offer (phrase p, List.map (fun (pat, case) ->
                             (Pattern.with_pos pat, phrase case)) cases, ty)
-    | Sugartypes.TryInOtherwise (p1, pat, p2, p3, ty) ->
-       TryInOtherwise (phrase p1, Pattern.with_pos pat, phrase p2, phrase p3, ty)
-    | Sugartypes.Raise -> Raise
+    | Sugartypes.Page _
+    | Sugartypes.FormletPlacement _
+    | Sugartypes.PagePlacement _
+    | Sugartypes.FormBinding _
+    | Sugartypes.Formlet _
+    | Sugartypes.Regex _
+    | Sugartypes.Iteration _
+    | Sugartypes.DBInsert _
+    | Sugartypes.Spawn _
+    | Sugartypes.Receive _
+    | Sugartypes.Raise
+    | Sugartypes.HandlerLit _
+    | Sugartypes.TryInOtherwise _
     | Sugartypes.CP _ -> assert false
   and phrase_opt : Sugartypes.phrase option -> phrase option =
     fun phr_opt -> OptionUtils.opt_map (fun phr -> phrase phr) phr_opt
@@ -550,8 +468,6 @@ module Desugar = struct
        (bndr, lin, (tvs, funlit flit), loc, OptionUtils.opt_map datatype' ty',
         pos)
      in Funs (List.map desugar_decl decls)
-  | Sugartypes.Handler (bndr, hlit, ty') ->
-     Handler (bndr, handlerlit hlit, OptionUtils.opt_map datatype' ty')
   | Sugartypes.Foreign (bndr, n1, n2, n3, ty') ->
      Foreign (bndr, n1, n2, n3, datatype' ty')
   | Sugartypes.Type (n, tvs, ty') ->
@@ -560,6 +476,7 @@ module Desugar = struct
      Infix
   | Sugartypes.Exp p ->
      Exp (phrase p)
+  | Sugartypes.Handler _
   | Sugartypes.QualifiedImport _
   | Sugartypes.Module _
   | Sugartypes.AlienBlock _ -> assert false
