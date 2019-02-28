@@ -2,6 +2,7 @@ open Operators
 open CommonTypes
 open SourceCode
 open Sugartypes
+open Binders
 
 (*
   These functions are contravariant in the object type so if

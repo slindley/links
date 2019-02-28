@@ -1,5 +1,6 @@
 open Utility
 open Operators
+open Binders
 open SourceCode.WithPos
 open Sugartypes
 

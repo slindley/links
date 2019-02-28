@@ -366,7 +366,7 @@ struct
            (* TODO FIXME traverse parameters *)
            let (depth, o) =
              match ih_depth with
-             | Deep params ->
+             | Ir.Deep params ->
                 let (o, bindings) =
                   List.fold_left
                     (fun (o, bvs) (b,v) ->
@@ -375,8 +375,8 @@ struct
                       (o, (b,v) :: bvs))
                     (o, []) params
                 in
-                Deep (List.rev bindings), o
-             | Shallow -> Shallow, o
+                Ir.Deep (List.rev bindings), o
+             | Ir.Shallow -> Ir.Shallow, o
            in
 	   let (cases, _branch_types, o) =
 	     o#name_map

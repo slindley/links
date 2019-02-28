@@ -9,6 +9,7 @@
 *)
 
 open CommonTypes
+open Binders
 open SourceCode
 open Utility
 open Ir
@@ -99,9 +100,9 @@ let rec desugar_pattern : Ir.scope -> Desugartypes.Pattern.with_pos -> Pattern.t
     let empty = (NEnv.empty, TEnv.empty, Types.make_empty_open_row (lin_any, res_any)) in
     let (++) (nenv, tenv, _) (nenv', tenv', eff') = (NEnv.extend nenv nenv', TEnv.extend tenv tenv', eff') in
     let fresh_binder (nenv, tenv, eff) bndr =
-      assert (Sugartypes.Binder.has_type bndr);
-      let name = Sugartypes.Binder.to_name bndr in
-      let t = Sugartypes.Binder.to_type_exn bndr in
+      assert (Binder.has_type bndr);
+      let name = Binder.to_name bndr in
+      let t = Binder.to_type_exn bndr in
       let xb, x = Var.fresh_var (t, name, scope) in
       xb, (NEnv.bind nenv (name, x), TEnv.bind tenv (x, t), eff)
     in
@@ -1080,8 +1081,8 @@ let compile_handle_cases
         ih_cases  = compiled_effect_cases;
         ih_depth  =
           match desc.Desugartypes.shd_depth  with
-          | Sugartypes.Shallow -> Ir.Shallow
-          | Sugartypes.Deep    -> Ir.Deep params
+          | CommonTypes.Shallow -> Ir.Shallow
+          | CommonTypes.Deep    -> Ir.Deep params
       }
   in
   (outer_param_bindings, Special handle)

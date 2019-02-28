@@ -178,3 +178,20 @@ module Constant = struct
     | String s    -> "'" ^ escape_string s ^ "'"
     | Float value -> string_of_float' value
 end
+
+(* Declarations shared between Sugartypes and Desugartypes *)
+
+type name = string [@@deriving show]
+
+type spawn_kind = Angel | Demon | Wait
+    [@@deriving show]
+
+type handler_depth = Deep | Shallow
+    [@@deriving show]
+
+type fieldconstraint = Readonly | Default
+    [@@deriving show]
+
+type known_type_variable = name * subkind option * freedom
+    [@@deriving show]
+

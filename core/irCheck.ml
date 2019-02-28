@@ -825,7 +825,7 @@ struct
           let (comp, comp_t, o) = o#computation ih_comp in
           let (depth, o) =
             match ih_depth with
-            | Deep params ->
+            | Ir.Deep params ->
                 (* TODO: Find out what these "params" are for *)
                 let (o, bindings) =
                   List.fold_left
@@ -836,8 +836,8 @@ struct
                       (o, (b,v) :: bvs))
                     (o, []) params
                 in
-                Deep (List.rev bindings), o
-            | Shallow -> Shallow, o in
+                Ir.Deep (List.rev bindings), o
+            | Ir.Shallow -> Ir.Shallow, o in
           let o, _ = o#set_allowed_effects outer_effects in
 
           o#check_eq_types return_binder_type comp_t (`Special special);

@@ -2,6 +2,7 @@ open Operators
 open CommonTypes
 open SourceCode
 open Sugartypes
+open Binders
 
 (* Make a copy of a value.  You can override any method(s) to get a
    different operation at that type.  For example, the function

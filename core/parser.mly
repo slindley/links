@@ -43,6 +43,7 @@ open Operators
 open SourceCode
 open Sugartypes
 open SugarConstructors
+open Binders
 
 module Links_core = (* See Note [Dune "wrapped" workaround] *)
 struct
@@ -52,6 +53,7 @@ struct
   module Types             = Types
   module Operators         = Operators
   module SourceCode        = SourceCode
+  module Binders           = Binders
 end
 
 (* Construction of nodes using positions produced by Menhir parser *)
@@ -247,7 +249,7 @@ let parseRegexFlags f =
 %type <Sugartypes.regex> regex_pattern
 %type <Sugartypes.regex list> regex_pattern_sequence
 %type <Sugartypes.Pattern.with_pos> pattern
-%type <DeclaredLinearity.t * Sugartypes.name *
+%type <DeclaredLinearity.t * CommonTypes.name *
        Sugartypes.Pattern.with_pos list list * Location.t *
        Sugartypes.phrase> tlfunbinding
 %type <Sugartypes.phrase> postfix_expression
