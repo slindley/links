@@ -25,6 +25,7 @@
 *)
 open Utility
 open Operators
+open Binders
 open Sugartypes
 open Printf
 open SourceCode.WithPos

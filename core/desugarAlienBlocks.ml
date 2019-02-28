@@ -12,6 +12,7 @@
 
 open Utility
 open SourceCode.WithPos
+open Binders
 open Sugartypes
 open SugarConstructors.DummyPositions
 

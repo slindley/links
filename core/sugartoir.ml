@@ -3,7 +3,7 @@ open Operators
 open Utility
 open SourceCode
 open SourceCode.WithPos
-open Sugartypes.Binder
+open Binders
 open Ir
 
 (* {0 Sugar To IR}
@@ -772,9 +772,9 @@ struct
           | ListLit (e::es, Some t) ->
               cofv (I.apply_pure(instantiate "Cons" [`Type t; `Row eff],
                                  [ev e; ev (WithPos.make ~pos (ListLit (es, Some t)))]))
-          | Escape (bndr, body) when has_type bndr ->
-             let k  = to_name bndr in
-             let kt = to_type_exn bndr in
+          | Escape (bndr, body) when Binder.has_type bndr ->
+             let k  = Binder.to_name bndr in
+             let kt = Binder.to_type_exn bndr in
              I.escape ((kt, k, `Local), eff, fun v -> eval (extend [k] [(v, kt)] env) body)
           | Section (Section.Minus) -> cofv (lookup_var "-")
           | Section (Section.FloatMinus) -> cofv (lookup_var "-.")
@@ -1074,9 +1074,9 @@ struct
               let open Desugartypes in
               match b with
                 | Val ({node=Pattern.Variable bndr; _}, (_, body), _, _)
-                     when has_type bndr ->
-                    let x  = to_name bndr in
-                    let xt = to_type_exn bndr in
+                     when Binder.has_type bndr ->
+                    let x  = Binder.to_name     bndr in
+                    let xt = Binder.to_type_exn bndr in
                     let x_info = (xt, x, scope) in
                       I.letvar
                         (x_info,
@@ -1090,9 +1090,9 @@ struct
                     let ss = eval_bindings scope env' bs e in
                       I.comp env (p, s, ss)
                 | Fun (bndr, _, (tyvars, ([ps], body)), location, _)
-                     when has_type bndr ->
-                    let f  = to_name bndr in
-                    let ft = to_type_exn bndr in
+                     when Binder.has_type bndr ->
+                    let f  = Binder.to_name     bndr in
+                    let ft = Binder.to_type_exn bndr in
                     let ps, body_env =
                       List.fold_right
                         (fun p (ps, body_env) ->
@@ -1111,8 +1111,8 @@ struct
                     let fs, inner_fts, outer_fts =
                       List.fold_right
                         (fun (bndr, _, ((_tyvars, inner_opt), _), _, _, _) (fs, inner_fts, outer_fts) ->
-                          let f = to_name bndr in
-                          let outer  = to_type_exn bndr in
+                          let f     = Binder.to_name     bndr in
+                          let outer = Binder.to_type_exn bndr in
                           let (inner, _) = OptionUtils.val_of inner_opt in
                               (f::fs, inner::inner_fts, outer::outer_fts))
                         defs
@@ -1121,8 +1121,8 @@ struct
                       List.map
                         (fun (bndr, _, ((tyvars, _), (pss, body)), location, _, _) ->
                           assert (List.length pss = 1);
-                          let f  = to_name bndr in
-                          let ft = to_type_exn bndr in
+                          let f  = Binder.to_name     bndr in
+                          let ft = Binder.to_type_exn bndr in
                           let ps = List.hd pss in
                            let ps, body_env =
                              List.fold_right
@@ -1137,9 +1137,9 @@ struct
                     in
                       I.letrec env defs (fun vs -> eval_bindings scope (extend fs (List.combine vs outer_fts) env) bs e)
                 | Foreign (bndr, raw_name, language, _file, _)
-                     when has_type bndr ->
-                    let x  = to_name bndr in
-                    let xt = to_type_exn bndr in
+                     when Binder.has_type bndr ->
+                    let x  = Binder.to_name     bndr in
+                    let xt = Binder.to_type_exn bndr in
                     I.alien ((xt, x, scope), raw_name, language, fun v -> eval_bindings scope (extend [x] [(v, xt)] env) bs e)
                 | Type _
                 | Infix ->

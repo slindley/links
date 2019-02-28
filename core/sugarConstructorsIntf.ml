@@ -5,6 +5,7 @@ open CommonTypes
 open Operators
 open SourceCode
 open Sugartypes
+open Binders
 
 (* An abstract type of positions and operations on them.  The core type of
    positions used in the compilation pipeline is Sugartypes.position, which

@@ -1,6 +1,7 @@
 open Utility
 open Printf
 open SourceCode.WithPos
+open Binders
 open Sugartypes
 
 let module_sep = "."

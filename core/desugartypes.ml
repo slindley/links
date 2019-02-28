@@ -2,7 +2,26 @@ open CommonTypes
 open Operators
 open Utility
 open SourceCode
-open Sugartypes
+open Binders
+
+type kind = PrimaryKind.t * subkind option
+    [@@deriving show]
+
+type type_variable = name * kind * freedom
+    [@@deriving show]
+
+(* type variable of primary kind Type? *)
+type quantifier = type_variable
+  [@@deriving show]
+
+type fn_dep = string * string
+    [@@deriving show]
+
+type tyvar = Types.quantifier
+  [@@deriving show]
+
+type tyarg = Types.type_arg
+  [@@deriving show]
 
 module Datatype = struct
   type t =

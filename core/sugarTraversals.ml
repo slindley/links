@@ -10,6 +10,7 @@
 
 open Operators
 open CommonTypes
+open Binders
 open SourceCode
 open Sugartypes
 

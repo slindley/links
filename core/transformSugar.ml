@@ -1,5 +1,6 @@
 open CommonTypes
 open Operators
+open Binders
 open Sugartypes
 open SourceCode
 open SourceCode.WithPos
