@@ -37,13 +37,11 @@ let sort_cols_of_table (tableName : string) (t : Types.typ) =
     let rt = extract_record_type t in
     sort_cols_of_record tableName rt
 
-let var_name (var : Desugartypes.phrase) =
-    match WithPos.node var with
+let var_name = function
     | Desugartypes.Var name -> name
     | _ -> failwith "Expected a `Var type"
 
-let cols_of_phrase (key : Desugartypes.phrase) : string list =
-    match WithPos.node key with
+let cols_of_phrase = function
     | Desugartypes.TupleLit keys -> List.map var_name keys
     | Desugartypes.Var name -> [name]
     | _ -> failwith "Expected a tuple or a variable."

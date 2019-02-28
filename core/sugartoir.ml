@@ -2,7 +2,6 @@ open CommonTypes
 open Operators
 open Utility
 open SourceCode
-open SourceCode.WithPos
 open Binders
 open Ir
 
@@ -728,7 +727,7 @@ struct
   let (++) (nenv, tenv, _) (nenv', tenv', eff') = (NEnv.extend nenv nenv', TEnv.extend tenv tenv', eff')
 
   let rec eval : env -> Desugartypes.phrase -> tail_computation I.sem =
-    fun env {node=e; pos} ->
+    fun env e ->
       let lookup_var name =
         let x, xt = lookup_name_and_type name env in
           I.var (x, xt) in
@@ -747,9 +746,8 @@ struct
                       prerr_endline ("tyargs: "^String.concat "," (List.map (fun t -> Types.string_of_type_arg t) tyargs));
                       failwith "fatal internal error" in
 
-      let rec is_pure_primitive e =
-        let open Desugartypes in
-        match WithPos.node e with
+      let rec is_pure_primitive =
+        let open Desugartypes in function
           | TAbstr (_, e)
           | TAppl (e, _) -> is_pure_primitive e
           | Var f when Lib.is_pure_primitive f -> true
@@ -771,7 +769,7 @@ struct
               cofv (instantiate "Nil" [`Type t])
           | ListLit (e::es, Some t) ->
               cofv (I.apply_pure(instantiate "Cons" [`Type t; `Row eff],
-                                 [ev e; ev (WithPos.make ~pos (ListLit (es, Some t)))]))
+                                 [ev e; ev (ListLit (es, Some t))]))
           | Escape (bndr, body) when Binder.has_type bndr ->
              let k  = Binder.to_name bndr in
              let kt = Binder.to_type_exn bndr in
@@ -812,9 +810,9 @@ struct
               cofv (I.apply_pure(instantiate n tyargs, [ev e]))
           | UnaryAppl ((tyargs, UnaryOp.Name n), e) ->
               I.apply (instantiate n tyargs, [ev e])
-          | FnAppl ({node=Var f; _}, es) when Lib.is_pure_primitive f ->
+          | FnAppl (Var f, es) when Lib.is_pure_primitive f ->
               cofv (I.apply_pure (I.var (lookup_name_and_type f env), evs es))
-          | FnAppl ({node=TAppl ({node=Var f; _}, tyargs); _}, es)
+          | FnAppl (TAppl (Var f, tyargs), es)
                when Lib.is_pure_primitive f ->
               cofv (I.apply_pure (instantiate f tyargs, evs es))
           | FnAppl (e, es) when is_pure_primitive e ->
@@ -833,7 +831,7 @@ struct
                   with
                       Instantiate.ArityMismatch ->
                         prerr_endline ("Arity mismatch in type application (Sugartoir)");
-                        prerr_endline ("expression: " ^ show_phrasenode (TAppl (e, tyargs)));
+                        prerr_endline ("expression: " ^ show_phrase (TAppl (e, tyargs)));
                         prerr_endline ("type: "^Types.string_of_datatype vt);
                         prerr_endline ("tyargs: "^String.concat "," (List.map (fun t -> Types.string_of_type_arg t) tyargs));
                         failwith "fatal internal error"
@@ -912,16 +910,16 @@ struct
               in
                 I.switch env (ev e, cases, t)
           | DatabaseLit (name, (None, _)) ->
-              I.database (ev (WithPos.make ~pos (RecordLit ([("name", name)],
-                                          Some (WithPos.make ~pos (FnAppl (WithPos.make ~pos (Var "getDatabaseConfig"), [])))))))
+              I.database (ev (RecordLit ([("name", name)],
+                                          Some (FnAppl (Var "getDatabaseConfig", [])))))
           | DatabaseLit (name, (Some driver, args)) ->
               let args =
                 match args with
-                  | None -> WithPos.make ~pos (Constant (Constant.String ""))
+                  | None -> Constant (Constant.String "")
                   | Some args -> args
               in
                 I.database
-                  (ev (WithPos.make ~pos (RecordLit ([("name", name); ("driver", driver); ("args", args)], None))))
+                  (ev (RecordLit ([("name", name); ("driver", driver); ("args", args)], None)))
           | LensLit (table, Some t) ->
               let table = ev table in
                 I.lens_handle (table, t)
@@ -957,7 +955,7 @@ struct
                     | [] -> ()
                     | (name, _) :: attrs ->
                         if StringSet.mem name names then
-                          raise (Errors.SugarError (pos,
+                          raise (Errors.SugarError (Position.dummy, (* JSTOLAREK: dummy position substituted here *)
                                                  "XML attribute '"^name^"' is defined more than once"))
                         else
                           dup_check (StringSet.add name names) attrs
@@ -966,7 +964,7 @@ struct
               in
                 if tag = "#" then
                   if List.length attrs != 0 || attrexp <> None then
-                    raise (Errors.SugarError (pos,
+                    raise (Errors.SugarError (Position.dummy, (* JSTOLAREK: dummy position substituted here *)
                                            "XML forest literals cannot have attributes"))
                   else
                     cofv
@@ -989,7 +987,7 @@ struct
               cofv
                 (I.apply_pure
                    (instantiate_mb "stringToXml",
-                    [ev (WithPos.make ~pos (Constant (Constant.String name)))]))
+                    [ev (Constant (Constant.String name))]))
           | Block (bs, e) -> eval_bindings `Local env bs e
           | Query (range, e, _) ->
               I.query (opt_map (fun (limit, offset) -> (ev limit, ev offset)) range, ec e)
@@ -1002,7 +1000,7 @@ struct
                 opt_map
                   (fun where -> eval env' where)
                   where in
-              let body = eval env' (WithPos.make ~pos (RecordLit (fields, None))) in
+              let body = eval env' (RecordLit (fields, None)) in
                 I.db_update env (p, source, where, body)
           | DBDelete (p, source, where) ->
               let p, penv = CompilePatterns.desugar_pattern `Local p in
@@ -1044,7 +1042,7 @@ struct
           | LensPutLit _
           | Offer _
           | DoOperation _ ->
-              Debug.print ("oops: " ^ show_phrasenode e);
+              Debug.print ("oops: " ^ show_phrase e);
               assert false
 
   and eval_bindings scope env bs' e =
@@ -1052,11 +1050,11 @@ struct
     let ev = evalv env in
       match bs' with
         | [] -> ec e
-        | { node = b; _ }::bs ->
+        | b::bs ->
             begin
               let open Desugartypes in
               match b with
-                | Val ({node=Pattern.Variable bndr; _}, (_, body), _, _)
+                | Val (Pattern.Variable bndr, (_, body), _, _)
                      when Binder.has_type bndr ->
                     let x  = Binder.to_name     bndr in
                     let xt = Binder.to_type_exn bndr in
@@ -1191,7 +1189,7 @@ struct
 (*     Debug.print (Desugartypes.show_program (bindings, body)); *)
     let body =
       match body with
-        | None -> WithPos.dummy (Desugartypes.RecordLit ([], None))
+        | None -> Desugartypes.RecordLit ([], None)
         | Some body -> body in
       let s = eval_bindings `Global env bindings body in
         let r = (I.reify s) in

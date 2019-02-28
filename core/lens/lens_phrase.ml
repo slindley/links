@@ -1,6 +1,5 @@
 open Utility
 open Types
-open SourceCode
 open Lens_operators
 open Lens_utility
 
@@ -24,14 +23,13 @@ let tuple v = TupleLit v
 
 let tuple_singleton v = tuple [v]
 
-let name_of_var expr =
-  match WithPos.node expr with
+let name_of_var = function
   | Desugartypes.Var n -> n
   | _ -> failwith "Expected var."
 
 let of_phrase p =
   let rec f p =
-    match WithPos.node p with
+    match p with
     | Desugartypes.Constant c -> Constant c
     | Desugartypes.Var v -> Var v
     | Desugartypes.UnaryAppl ((_, op), phrase) -> UnaryAppl (Unary.from_links op, f phrase)

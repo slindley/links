@@ -10,7 +10,6 @@
 
 open CommonTypes
 open Binders
-open SourceCode
 open Utility
 open Ir
 
@@ -77,8 +76,8 @@ let lookup_name name (nenv, _tenv, _eff, _penv) =
 
 let lookup_effects (_nenv, _tenv, eff, _penv) = eff
 
-let rec desugar_pattern : Ir.scope -> Desugartypes.Pattern.with_pos -> pattern * raw_env =
-  fun scope {WithPos.node=p; pos} ->
+let rec desugar_pattern : Ir.scope -> Desugartypes.Pattern.t -> pattern * raw_env =
+  fun scope p ->
     let desugar_pat = desugar_pattern scope in
     let empty = (NEnv.empty, TEnv.empty, Types.make_empty_open_row (lin_any, res_any)) in
     let (++) (nenv, tenv, _) (nenv', tenv', eff') = (NEnv.extend nenv nenv', TEnv.extend tenv tenv', eff') in
@@ -97,10 +96,10 @@ let rec desugar_pattern : Ir.scope -> Desugartypes.Pattern.with_pos -> pattern *
             let p, env = desugar_pat p in
             let ps, env' = desugar_pat ps in
               `Cons (p, ps), env ++ env'
-        | List [] -> desugar_pat (WithPos.make ~pos Nil)
+        | List [] -> desugar_pat Nil
         | List (p::ps) ->
             let p, env = desugar_pat p in
-            let ps, env' = desugar_pat (WithPos.make ~pos (List ps)) in
+            let ps, env' = desugar_pat (List ps) in
               `Cons (p, ps), env ++ env'
         | Variant (name, None) -> `Variant (name, `Any), empty
         | Variant (name, Some p) ->
@@ -135,7 +134,7 @@ let rec desugar_pattern : Ir.scope -> Desugartypes.Pattern.with_pos -> pattern *
               `Record (bs, p), env
         | Tuple ps ->
             let bs = mapIndex (fun p i -> (string_of_int (i+1), p)) ps in
-              desugar_pat (WithPos.make ~pos (Record (bs, None)))
+              desugar_pat (Record (bs, None))
         | Constant constant ->
             `Constant constant, empty
         | Variable b ->

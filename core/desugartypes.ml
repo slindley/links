@@ -27,63 +27,61 @@ module Datatype = struct
   type t =
     | TypeVar         of known_type_variable
     | QualifiedTypeApplication of (name list * type_arg list)
-    | Function        of with_pos list * row * with_pos
-    | Lolli           of with_pos list * row * with_pos
-    | Mu              of name * with_pos
-    | Forall          of quantifier list * with_pos
+    | Function        of t list * row * t
+    | Lolli           of t list * row * t
+    | Mu              of name * t
+    | Forall          of quantifier list * t
     | Unit
-    | Tuple           of with_pos list
+    | Tuple           of t list
     | Record          of row
     | Variant         of row
     | Effect          of row
-    | Table           of with_pos * with_pos * with_pos
-    | List            of with_pos
+    | Table           of t * t * t
+    | List            of t
     | TypeApplication of (string * type_arg list)
     | Primitive       of Primitive.t
     | DB
-    | Input           of with_pos * with_pos
-    | Output          of with_pos * with_pos
+    | Input           of t * t
+    | Output          of t * t
     | Select          of row
     | Choice          of row
-    | Dual            of with_pos
+    | Dual            of t
     | End
-  and with_pos = t WithPos.t
   and row = (string * fieldspec) list * row_var
   and row_var =
     | Closed
     | Open of known_type_variable
     | Recursive of name * row
   and fieldspec =
-    | Present of with_pos
+    | Present of t
     | Absent
     | Var of known_type_variable
   and type_arg =
-    | Type of with_pos
-    | Row of row
+    | Type of t
+    | Row  of row
     | Presence of fieldspec
       [@@deriving show]
 end
 
 (* Store the denotation along with the notation once it's computed *)
-type datatype' = Datatype.with_pos * Types.datatype option
+type datatype' = Datatype.t * Types.datatype option
     [@@deriving show]
 
 module Pattern = struct
   type t =
     | Any
     | Nil
-    | Cons     of with_pos * with_pos
-    | List     of with_pos list
-    | Variant  of name * with_pos option
-    | Effect   of name * with_pos list * with_pos
+    | Cons     of t * t
+    | List     of t list
+    | Variant  of name * t option
+    | Effect   of name * t list * t
     | Negative of name list
-    | Record   of (name * with_pos) list * with_pos option
-    | Tuple    of with_pos list
+    | Record   of (name * t) list * t option
+    | Tuple    of t list
     | Constant of Constant.t
     | Variable of Binder.t
-    | As       of Binder.t * with_pos
-    | HasType  of with_pos * datatype'
-  and with_pos = t WithPos.t
+    | As       of Binder.t * t
+    | HasType  of t * datatype'
    [@@deriving show]
 end
 
@@ -91,10 +89,10 @@ type given_spawn_location =
   | ExplicitSpawnLocation of phrase (* spawnAt function *)
   | SpawnClient (* spawnClient function *)
   | NoSpawnLocation (* spawn function *)
-and clause = Pattern.with_pos * phrase
-and funlit = Pattern.with_pos list list * phrase
+and clause = Pattern.t * phrase
+and funlit = Pattern.t list list * phrase
 and handler_parameterisation = {
-  shp_bindings: (phrase * Pattern.with_pos) list;
+  shp_bindings: (phrase * Pattern.t) list;
   shp_types: Types.datatype list
 }
 and handler_descriptor = {
@@ -109,7 +107,7 @@ and handler = {
   sh_value_cases: clause list;
   sh_descr: handler_descriptor
 }
-and phrasenode =
+and phrase =
   | Constant         of Constant.t
   | Var              of name
   | Query            of (phrase * phrase) option * phrase *
@@ -134,14 +132,14 @@ and phrasenode =
   | ConstructorLit   of name * phrase option * Types.datatype option
   | DoOperation      of name * phrase list * Types.datatype option
   | Handle           of handler
-  | Switch           of phrase * (Pattern.with_pos * phrase) list *
+  | Switch           of phrase * (Pattern.t * phrase) list *
                           Types.datatype option
   | DatabaseLit      of phrase * (phrase option * phrase option)
-  | TableLit         of phrase * (Datatype.with_pos * (Types.datatype *
+  | TableLit         of phrase * (Datatype.t * (Types.datatype *
                            Types.datatype * Types.datatype) option) *
                           (name * fieldconstraint list) list * phrase * phrase
-  | DBDelete         of Pattern.with_pos * phrase * phrase option
-  | DBUpdate         of Pattern.with_pos * phrase * phrase option *
+  | DBDelete         of Pattern.t * phrase * phrase option
+  | DBUpdate         of Pattern.t * phrase * phrase option *
                           (name * phrase) list
   | LensLit          of phrase * Types.lens_sort option
   (* the lens keys lit is a literal that takes an expression and is converted
@@ -159,11 +157,10 @@ and phrasenode =
   (* choose *)
   | Select           of name * phrase
   (* choice *)
-  | Offer            of phrase * (Pattern.with_pos * phrase) list *
+  | Offer            of phrase * (Pattern.t * phrase) list *
                           Types.datatype option
-and phrase = phrasenode WithPos.t
-and bindingnode =
-  | Val     of (Pattern.with_pos * (tyvar list * phrase) * Location.t *
+and binding =
+  | Val     of (Pattern.t * (tyvar list * phrase) * Location.t *
                   datatype' option)
   | Fun     of (Binder.t * DeclaredLinearity.t * (tyvar list * funlit) *
                   Location.t * datatype' option)
@@ -176,7 +173,6 @@ and bindingnode =
   | Type    of (name * (quantifier * tyvar option) list * datatype')
   | Infix
   | Exp     of phrase
-and binding = bindingnode WithPos.t
 and block_body = binding list * phrase
                   [@@deriving show]
 
@@ -197,31 +193,32 @@ module Desugar = struct
      of with_pos.  If we get rid of positions in the desugared AST there will no
      longer be a name clash and thus this module can be removed. *)
   module Datatype = struct
-    let rec datatype : Sugartypes.Datatype.t -> Datatype.t =
-      function
+    let rec datatype : Sugartypes.Datatype.with_pos -> Datatype.t =
+      fun d -> datatypenode (WithPos.node d)
+    and datatypenode : Sugartypes.Datatype.t -> Datatype.t = function
       | Sugartypes.Datatype.TypeVar ktv ->
          Datatype.TypeVar ktv
       | Sugartypes.Datatype.QualifiedTypeApplication (names, tyargs) ->
          let tyargs' = List.map type_arg tyargs in
          Datatype.QualifiedTypeApplication (names, tyargs')
       | Sugartypes.Datatype.Function (dts, r, dt) ->
-         let dts' = List.map with_pos dts in
+         let dts' = List.map datatype dts in
          let r'   = row r in
-         let dt'  = with_pos dt in
+         let dt'  = datatype dt in
          Datatype.Function (dts', r', dt')
       | Sugartypes.Datatype.Lolli (dts, r, dt) ->
-         let dts' = List.map with_pos dts in
+         let dts' = List.map datatype dts in
          let r'   = row r in
-         let dt'  = with_pos dt in
+         let dt'  = datatype dt in
          Datatype.Lolli (dts', r', dt')
       | Sugartypes.Datatype.Mu (name, wp) ->
-         Datatype.Mu (name, with_pos wp)
+         Datatype.Mu (name, datatype wp)
       | Sugartypes.Datatype.Forall (quantifires, wp) ->
-         Datatype.Forall (quantifires, with_pos wp)
+         Datatype.Forall (quantifires, datatype wp)
       | Sugartypes.Datatype.Unit ->
          Datatype.Unit
       | Sugartypes.Datatype.Tuple components ->
-         Datatype.Tuple (List.map with_pos components)
+         Datatype.Tuple (List.map datatype components)
       | Sugartypes.Datatype.Record r ->
          Datatype.Record (row r)
       | Sugartypes.Datatype.Variant r ->
@@ -229,9 +226,9 @@ module Desugar = struct
       | Sugartypes.Datatype.Effect r ->
          Datatype.Effect (row r)
       | Sugartypes.Datatype.Table (wp1, wp2, wp3) ->
-         Datatype.Table (with_pos wp1, with_pos wp2, with_pos wp3)
+         Datatype.Table (datatype wp1, datatype wp2, datatype wp3)
       | Sugartypes.Datatype.List wp ->
-         Datatype.List (with_pos wp)
+         Datatype.List (datatype wp)
       | Sugartypes.Datatype.TypeApplication (name, tyargs) ->
          let tyargs' = List.map type_arg tyargs in
          Datatype.TypeApplication (name, tyargs')
@@ -240,18 +237,17 @@ module Desugar = struct
       | Sugartypes.Datatype.DB ->
          Datatype.DB
       | Sugartypes.Datatype.Input (wp1, wp2) ->
-         Datatype.Input (with_pos wp1, with_pos wp2)
+         Datatype.Input (datatype wp1, datatype wp2)
       | Sugartypes.Datatype.Output (wp1, wp2) ->
-         Datatype.Output (with_pos wp1, with_pos wp2)
+         Datatype.Output (datatype wp1, datatype wp2)
       | Sugartypes.Datatype.Select r ->
          Datatype.Select (row r)
       | Sugartypes.Datatype.Choice r ->
          Datatype.Choice (row r)
       | Sugartypes.Datatype.Dual wp ->
-         Datatype.Dual (with_pos wp)
+         Datatype.Dual (datatype wp)
       | Sugartypes.Datatype.End ->
          Datatype.End
-    and with_pos {WithPos.node; pos} = WithPos.make ~pos (datatype node)
     and row = fun (fspecs, rvar) ->
       let fspecs' = List.map (fun (str, fsp) -> str, fieldspec fsp) fspecs in
       let rvar'   = row_var rvar in
@@ -262,47 +258,48 @@ module Desugar = struct
       | Sugartypes.Datatype.Recursive (name, r) ->
          Datatype.Recursive (name, row r)
     and fieldspec = function
-      | Sugartypes.Datatype.Present wp -> Datatype.Present (with_pos wp)
+      | Sugartypes.Datatype.Present wp -> Datatype.Present (datatype wp)
       | Sugartypes.Datatype.Absent     -> Datatype.Absent
       | Sugartypes.Datatype.Var ktv    -> Datatype.Var ktv
     and type_arg = function
-      | Sugartypes.Datatype.Type wp     -> Datatype.Type (with_pos wp)
+      | Sugartypes.Datatype.Type wp     -> Datatype.Type (datatype wp)
       | Sugartypes.Datatype.Row r       -> Datatype.Row (row r)
       | Sugartypes.Datatype.Presence fs -> Datatype.Presence (fieldspec fs)
                                              [@@deriving show]
   end
 
   let datatype' : Sugartypes.datatype' -> datatype' =
-    fun (dt_wp, type_opt) -> (Datatype.with_pos dt_wp, type_opt)
+    fun (dt_wp, type_opt) -> (Datatype.datatype dt_wp, type_opt)
 
   module Pattern = struct
-    let rec pattern = function
+    let rec pattern : Sugartypes.Pattern.with_pos -> Pattern.t =
+      fun p -> patternnode (WithPos.node p)
+    and patternnode : Sugartypes.Pattern.t -> Pattern.t = function
       | Sugartypes.Pattern.Any -> Pattern.Any
       | Sugartypes.Pattern.Nil -> Pattern.Nil
       | Sugartypes.Pattern.Cons (hd, tl) ->
-         Pattern.Cons (with_pos hd, with_pos tl)
+         Pattern.Cons (pattern hd, pattern tl)
       | Sugartypes.Pattern.List xs ->
-         Pattern.List (List.map with_pos xs)
+         Pattern.List (List.map pattern xs)
       | Sugartypes.Pattern.Variant (n, wp_opt) ->
-         Pattern.Variant (n, OptionUtils.opt_map with_pos wp_opt)
+         Pattern.Variant (n, OptionUtils.opt_map pattern wp_opt)
       | Sugartypes.Pattern.Effect (name, wps, wp) ->
-         Pattern.Effect (name, List.map with_pos wps, with_pos wp)
+         Pattern.Effect (name, List.map pattern wps, pattern wp)
       | Sugartypes.Pattern.Negative names ->
          Pattern.Negative names
       | Sugartypes.Pattern.Record (fields, wp_opt) ->
-         let fields' = List.map (fun (n, wp) -> (n, with_pos wp)) fields in
-         Pattern.Record (fields', OptionUtils.opt_map with_pos wp_opt)
+         let fields' = List.map (fun (n, wp) -> (n, pattern wp)) fields in
+         Pattern.Record (fields', OptionUtils.opt_map pattern wp_opt)
       | Sugartypes.Pattern.Tuple components ->
-         Pattern.Tuple (List.map with_pos components)
+         Pattern.Tuple (List.map pattern components)
       | Sugartypes.Pattern.Constant constant ->
          Pattern.Constant constant
       | Sugartypes.Pattern.Variable bndr ->
          Pattern.Variable bndr
       | Sugartypes.Pattern.As (bndr, pat) ->
-         Pattern.As (bndr, with_pos pat)
+         Pattern.As (bndr, pattern pat)
       | Sugartypes.Pattern.HasType (pat, ty) ->
-         Pattern.HasType (with_pos pat,  datatype' ty)
-    and with_pos {WithPos.node; pos} = WithPos.make ~pos (pattern node)
+         Pattern.HasType (pattern pat,  datatype' ty)
   end
 
   let rec given_spawn_location :
@@ -311,10 +308,10 @@ module Desugar = struct
     | Sugartypes.SpawnClient               -> SpawnClient
     | Sugartypes.NoSpawnLocation           -> NoSpawnLocation
   and clause : Sugartypes.clause -> clause =
-    fun (pat, phr) -> (Pattern.with_pos pat, phrase phr)
+    fun (pat, phr) -> (Pattern.pattern pat, phrase phr)
   and funlit : Sugartypes.funlit -> funlit =
     fun (patss, phr) ->
-    let patss' = List.map (List.map Pattern.with_pos) patss in
+    let patss' = List.map (List.map Pattern.pattern) patss in
     (patss', phrase phr)
   and handler : Sugartypes.handler -> handler =
     fun {Sugartypes.sh_expr; Sugartypes.sh_effect_cases;
@@ -334,11 +331,11 @@ module Desugar = struct
         Sugartypes.handler_parameterisation -> handler_parameterisation =
     fun {Sugartypes.shp_bindings; Sugartypes.shp_types} ->
     { shp_bindings =
-        List.map (fun (phr, pat) -> (phrase phr, Pattern.with_pos pat))
+        List.map (fun (phr, pat) -> (phrase phr, Pattern.pattern pat))
                  shp_bindings
     ; shp_types
     }
-  and phrasenode : Sugartypes.phrasenode -> phrasenode = function
+  and phrasenode : Sugartypes.phrasenode -> phrase = function
     | Sugartypes.Constant c ->
        Constant c
     | Sugartypes.Var name ->
@@ -389,17 +386,17 @@ module Desugar = struct
        Handle (handler hdlr)
     | Sugartypes.Switch (scrut, cases, ty_opt) ->
        Switch (phrase scrut, List.map (fun (pat, case) ->
-                                 (Pattern.with_pos pat, phrase case)) cases,
+                                 (Pattern.pattern pat, phrase case)) cases,
                ty_opt)
     | Sugartypes.DatabaseLit (phr, (p1, p2)) ->
        DatabaseLit (phrase phr, (phrase_opt p1, phrase_opt p2))
     | Sugartypes.TableLit (phr, (dt, tys), constraints, p1, p2) ->
-       TableLit (phrase phr, (Datatype.with_pos dt, tys), constraints,
+       TableLit (phrase phr, (Datatype.datatype dt, tys), constraints,
                  phrase p1, phrase p2)
     | Sugartypes.DBDelete (pat, phr, phr_opt) ->
-       DBDelete (Pattern.with_pos pat, phrase phr, phrase_opt phr_opt)
+       DBDelete (Pattern.pattern pat, phrase phr, phrase_opt phr_opt)
     | Sugartypes.DBUpdate (pat, p1, phr_opt, exps) ->
-       DBUpdate (Pattern.with_pos pat, phrase p1, phrase_opt phr_opt,
+       DBUpdate (Pattern.pattern pat, phrase p1, phrase_opt phr_opt,
                  List.map (fun (n,p) -> (n, phrase p)) exps)
     | Sugartypes.LensLit (phr, sort) ->
        LensLit (phrase phr, sort)
@@ -423,7 +420,7 @@ module Desugar = struct
        Select (n, phrase p)
     | Sugartypes.Offer (p, cases, ty) ->
        Offer (phrase p, List.map (fun (pat, case) ->
-                            (Pattern.with_pos pat, phrase case)) cases, ty)
+                            (Pattern.pattern pat, phrase case)) cases, ty)
     | Sugartypes.LensKeysLit _
     | Sugartypes.LensFunDepsLit _
     | Sugartypes.QualifiedVar _
@@ -444,11 +441,11 @@ module Desugar = struct
     | Sugartypes.CP _ -> assert false
   and phrase_opt : Sugartypes.phrase option -> phrase option =
     fun phr_opt -> OptionUtils.opt_map (fun phr -> phrase phr) phr_opt
-  and phrase {WithPos.node; pos} = WithPos.make ~pos (phrasenode node)
+  and phrase {WithPos.node; _} = phrasenode node
   and phrases phrs = List.map phrase phrs
-  and bindingnode : Sugartypes.bindingnode -> bindingnode = function
+  and bindingnode : Sugartypes.bindingnode -> binding = function
     | Sugartypes.Val (pat, (tvs, p), loc, ty') ->
-       Val (Pattern.with_pos pat, (tvs, phrase p), loc,
+       Val (Pattern.pattern pat, (tvs, phrase p), loc,
             OptionUtils.opt_map datatype' ty')
     | Sugartypes.Fun (bndr, lin, (tvs, flit), loc, ty') ->
        Fun (bndr, lin, (tvs, funlit flit), loc,
@@ -470,7 +467,7 @@ module Desugar = struct
   | Sugartypes.QualifiedImport _
   | Sugartypes.Module _
   | Sugartypes.AlienBlock _ -> assert false
-  and binding {WithPos.node; pos} = WithPos.make ~pos (bindingnode node)
+  and binding {WithPos.node; _} = bindingnode node
   and block_body : Sugartypes.block_body -> block_body =
     fun (binds, body) -> (List.map binding binds, phrase body)
 
@@ -488,249 +485,3 @@ module Desugar = struct
   let program : Sugartypes.program -> program =
     fun (binds, phr) -> (List.map binding binds, phrase_opt phr)
 end
-
-(*
-(* Why does ConcreteSyntaxError take an
-   unresolved position and yet
-   PatternDuplicateNameError and
-   RedundantPatternMatch take resolved positions?
-*)
-exception ConcreteSyntaxError of (string * position)
-exception PatternDuplicateNameError of (SourceCode.pos * string)
-exception RedundantPatternMatch of SourceCode.pos
-
-let tabstr : tyvar list * phrasenode -> phrasenode = fun (tyvars, e) ->
-  match tyvars with
-    | [] -> e
-    | _  -> TAbstr (Types.box_quantifiers tyvars, with_dummy_pos e)
-
-let tappl : phrasenode * tyarg list -> phrasenode = fun (e, tys) ->
-  match tys with
-    | [] -> e
-    | _  -> TAppl (with_dummy_pos e, tys)
-
-module Freevars =
-struct
-  open Utility
-  open StringSet
-
-  let union_map f = union_all -<- List.map f
-  let option_map f = opt_app f empty
-
-  let rec pattern ({node; _} : Pattern.with_pos) : StringSet.t =
-    let open Pattern in
-    match node with
-    | Any
-    | Nil
-    | Constant _
-    | Negative _            -> empty
-    | Tuple ps
-    | List ps               -> union_map pattern ps
-    | Cons (p1, p2)         -> union (pattern p1) (pattern p2)
-    | Variant (_, popt)     -> option_map pattern popt
-    | Effect (_, ps, kopt)  -> union (union_map pattern ps) (pattern kopt)
-    | Record (fields, popt) ->
-       union (option_map pattern popt)
-         (union_map (snd ->- pattern) fields)
-    | Variable bndr         -> singleton (name_of_binder bndr)
-    | As (bndr, pat)        -> add (name_of_binder bndr) (pattern pat)
-    | HasType (pat, _)      -> pattern pat
-
-
-  let rec formlet_bound ({node; _} : phrase) : StringSet.t = match node with
-    | Xml (_, _, _, children) -> union_map formlet_bound children
-    | FormBinding (_, pat) -> pattern pat
-    | _ -> empty
-
-  let rec phrase (p : phrase) : StringSet.t =
-    let p = p.node in
-    match p with
-    | Var v -> singleton v
-    | Section (Section.Name n) -> singleton n
-
-    | Constant _
-    | TextNode _
-    | Section (Section.Minus|Section.FloatMinus|Section.Project _) -> empty
-
-    | Spawn (_, _, p, _)
-    | TAbstr (_, p)
-    | TAppl (p, _)
-    | FormBinding (p, _)
-    | Projection (p, _)
-    | Page p
-    | PagePlacement p
-    | Upcast (p, _, _)
-    | Select (_, p)
-    | TypeAnnotation (p, _) -> phrase p
-
-    | ListLit (ps, _)
-    | TupleLit ps -> union_map phrase ps
-
-    | LensLit (l, _) -> phrase l
-    (* this should be converted to `LensLit during typeSugar *)
-    | LensFunDepsLit _ -> assert false
-    | LensKeysLit (l, _, _) -> phrase l
-    | LensSelectLit (l, _, _) -> phrase l
-    | LensDropLit (l, _, _, _, _) -> phrase l
-    | LensJoinLit (l1, l2, _, _, _, _) -> union_all [phrase l1; phrase l2]
-
-    | LensGetLit (l, _) -> phrase l
-    | LensPutLit (l, data, _) -> union_all [phrase l; phrase data]
-
-    | Query (None, p, _) -> phrase p
-    | Query (Some (limit, offset), p, _) ->
-       union_all [phrase limit; phrase offset; phrase p]
-
-    | Escape (v, p) -> diff (phrase p) (singleton (name_of_binder v))
-    | FormletPlacement (p1, p2, p3)
-    | Conditional (p1, p2, p3) -> union_map phrase [p1;p2;p3]
-    | Block b -> block b
-    | InfixAppl ((_, BinaryOp.Name n), p1, p2) ->
-       union (singleton n) (union_map phrase [p1;p2])
-    | InfixAppl (_, p1, p2) -> union_map phrase [p1;p2]
-    | RangeLit (p1, p2) -> union_map phrase [p1;p2]
-    | Regex r -> regex r
-    | UnaryAppl (_, p) -> phrase p
-    | FnAppl (p, ps) -> union_map phrase (p::ps)
-    | RecordLit (fields, p) ->
-        union (union_map (snd ->- phrase) fields)
-          (option_map phrase p)
-    | With (p, fields) ->
-        union (union_map (snd ->- phrase) fields)
-          (phrase p)
-    | ConstructorLit (_, popt, _) -> option_map phrase popt
-    | DatabaseLit (p, (popt1, popt2)) ->
-        union_all [phrase p; option_map phrase popt1; option_map phrase popt2]
-    | DBInsert (p1, _labels, p2, popt) ->
-        union_all [phrase p1; phrase p2; option_map phrase popt]
-    | TableLit (p1, _, _, _, p2) -> union (phrase p1) (phrase p2)
-    | Xml (_, attrs, attrexp, children) ->
-        union_all
-          [union_map (snd ->- union_map phrase) attrs;
-           option_map phrase attrexp;
-           union_map phrase children]
-    | Formlet (xml, yields) ->
-        let binds = formlet_bound xml in
-          union (phrase xml) (diff (phrase yields) binds)
-    | HandlerLit hnlit -> handlerlit hnlit
-    | FunLit (_, _, fnlit, _) -> funlit fnlit
-    | Iteration (generators, body, where, orderby) ->
-        let xs = union_map (function
-                             | List (_, source)
-                             | Table (_, source) -> phrase source) generators in
-        let pat_bound = union_map (function
-                                  | List (pat, _)
-                                  | Table (pat, _) -> pattern pat) generators in
-          union_all [xs;
-                     diff (phrase body) pat_bound;
-                     diff (option_map phrase where) pat_bound;
-                     diff (option_map phrase orderby) pat_bound]
-    | Handle { sh_expr = e; sh_effect_cases = eff_cases;
-               sh_value_cases = val_cases; sh_descr = descr } ->
-       let params_bound =
-         option_map
-           (fun params -> union_map (snd ->- pattern) params.shp_bindings)
-           descr.shd_params
-       in
-       union_all [phrase e;
-                  union_map case eff_cases;
-                  union_map case val_cases;
-                  diff (option_map (fun params -> union_map (fst ->- phrase)
-                                                    params.shp_bindings)
-                          descr.shd_params) params_bound]
-    | Switch (p, cases, _)
-    | Offer (p, cases, _) -> union (phrase p) (union_map case cases)
-    | CP cp -> cp_phrase cp
-    | Receive (cases, _) -> union_map case cases
-    | DBDelete (pat, p, where) ->
-        union (phrase p)
-          (diff (option_map phrase where)
-             (pattern pat))
-    | DBUpdate (pat, from, where, fields) ->
-        let pat_bound = pattern pat in
-          union_all [phrase from;
-                     diff (option_map phrase where) pat_bound;
-                     diff (union_map (snd ->- phrase) fields) pat_bound]
-    | DoOperation (_, ps, _) -> union_map phrase ps
-    | QualifiedVar _ -> empty
-    | TryInOtherwise (p1, pat, p2, p3, _ty) ->
-       union (union_map phrase [p1; p2; p3]) (pattern pat)
-    | Raise -> empty
-  and binding ({node = binding; _}: binding)
-      : StringSet.t (* vars bound in the pattern *)
-      * StringSet.t (* free vars in the rhs *) =
-    match binding with
-    | Val (pat, (_, rhs), _, _) -> pattern pat, phrase rhs
-    | Handler (bndr, hnlit, _) ->
-       let name = singleton (name_of_binder bndr) in
-       name, (diff (handlerlit hnlit) name)
-    | Fun (bndr, _, (_, fn), _, _) ->
-       let name = singleton (name_of_binder bndr) in
-       name, (diff (funlit fn) name)
-    | Funs funs ->
-        let names, rhss =
-          List.fold_right
-            (fun (bndr, _, (_, rhs), _, _, _) (names, rhss) ->
-               (add (name_of_binder bndr) names, rhs::rhss))
-            funs
-            (empty, []) in
-          names, union_map (fun rhs -> diff (funlit rhs) names) rhss
-    | Foreign (bndr, _, _, _, _) -> singleton (name_of_binder bndr), empty
-    | QualifiedImport _
-    | Type _
-    | Infix -> empty, empty
-    | Exp p -> empty, phrase p
-    | AlienBlock (_, _, decls) ->
-        let bound_foreigns =
-          List.fold_left (fun acc (bndr, _) ->
-              StringSet.add (name_of_binder bndr) acc)
-            (StringSet.empty) decls in
-        bound_foreigns, empty
-        (* TODO: this needs to be implemented *)
-    | Module _ -> failwith "Freevars for modules not implemented yet"
-  and funlit (args, body : funlit) : StringSet.t =
-    diff (phrase body) (union_map (union_map pattern) args)
-  and handlerlit (_, m, cases, params : handlerlit) : StringSet.t =
-    union_all [diff (union_map case cases)
-                 (option_map (union_map (union_map pattern)) params); pattern m]
-  and block (binds, expr : binding list * phrase) : StringSet.t =
-    ListLabels.fold_right binds ~init:(phrase expr)
-      ~f:(fun bind bodyfree ->
-            let patbound, exprfree = binding bind in
-              union exprfree (diff bodyfree patbound))
-  and case (pat, body) : StringSet.t = diff (phrase body) (pattern pat)
-  and regex = function
-    | Range _
-    | Simply _
-    | Any
-    | StartAnchor
-    | EndAnchor
-    | Quote _ -> empty
-    | Seq rs -> union_map regex rs
-    | Alternate (r1, r2) -> union (regex r1) (regex r2)
-    | Group r
-    | Repeat (_, r) -> regex r
-    | Splice p -> phrase p
-    | Replace (r, Literal _) -> regex r
-    | Replace (r, SpliceExpr p) -> union (regex r) (phrase p)
-  and cp_phrase {node = p; _ } = match p with
-    | CPUnquote e -> block e
-    | CPGrab ((c, _t), Some bndr, p) ->
-      union (singleton c) (diff (cp_phrase p) (singleton (name_of_binder bndr)))
-    | CPGrab ((c, _t), None, p) -> union (singleton c) (cp_phrase p)
-    | CPGive ((c, _t), e, p) -> union (singleton c) (union (option_map phrase e)
-                                                           (cp_phrase p))
-    | CPGiveNothing bndr -> singleton (name_of_binder bndr)
-    | CPSelect (bndr, _label, p) ->
-      union (singleton (name_of_binder bndr)) (cp_phrase p)
-    | CPOffer (bndr, cases) ->
-      union (singleton (name_of_binder bndr))
-            (union_map (fun (_label, p) -> cp_phrase p) cases)
-    | CPLink (bndr1, bndr2) ->
-      union (singleton (name_of_binder bndr1))
-            (singleton (name_of_binder bndr2))
-    | CPComp (bndr, left, right) ->
-       diff (union (cp_phrase left) (cp_phrase right))
-            (singleton (name_of_binder bndr))
-end
-*)
