@@ -917,7 +917,7 @@ struct
           | DatabaseLit (name, (Some driver, args)) ->
               let args =
                 match args with
-                  | None -> WithPos.make ~pos (Sugartypes.Constant (Constant.String ""))
+                  | None -> WithPos.make ~pos (Desugartypes.Constant (Constant.String ""))
                   | Some args -> args
               in
                 I.database
@@ -971,7 +971,7 @@ struct
               cofv
                 (I.apply_pure
                    (instantiate_mb "stringToXml",
-                    [ev (WithPos.make ~pos (Sugartypes.Constant (Constant.String name)))]))
+                    [ev (WithPos.make ~pos (Desugartypes.Constant (Constant.String name)))]))
           | Block (bs, e) -> eval_bindings `Local env bs e
           | Query (range, e, _) ->
               I.query (opt_map (fun (limit, offset) -> (ev limit, ev offset)) range, ec e)

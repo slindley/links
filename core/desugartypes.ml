@@ -61,8 +61,8 @@ module Pattern = struct
     | Record   of (name * with_pos) list * with_pos option
     | Tuple    of with_pos list
     | Constant of Constant.t
-    | Variable of Binder.t
-    | As       of Binder.t * with_pos
+    | Variable of Binder.with_pos
+    | As       of Binder.with_pos * with_pos
     | HasType  of with_pos * datatype'
   and with_pos = t WithPos.t
    [@@deriving show]
@@ -97,7 +97,7 @@ and phrasenode =
                           Types.datatype option
   | RangeLit         of (phrase * phrase)
   | ListLit          of phrase list * Types.datatype option
-  | Escape           of Binder.t * phrase
+  | Escape           of Binder.with_pos * phrase
   | Section          of Section.t
   | Conditional      of phrase * phrase * phrase
   | Block            of block_body
@@ -146,14 +146,13 @@ and phrase = phrasenode WithPos.t
 and bindingnode =
   | Val     of (Pattern.with_pos * (tyvar list * phrase) * Location.t *
                   datatype' option)
-  | Fun     of (Binder.t * DeclaredLinearity.t * (tyvar list * funlit) *
+  | Fun     of (Binder.with_pos * DeclaredLinearity.t * (tyvar list * funlit) *
                   Location.t * datatype' option)
-  | Funs    of (Binder.t * DeclaredLinearity.t *
+  | Funs    of (Binder.with_pos * DeclaredLinearity.t *
                   ((tyvar list *
                    (Types.datatype * Types.quantifier option list) option)
                    * funlit) * Location.t * datatype' option * Position.t) list
-  | Foreign of (Binder.t * name * name * name * datatype')
-               (* Binder, raw function name, language, external file, type *)
+  | Foreign of (Binder.with_pos * name * name * name * datatype')
   | Type    of (name * (quantifier * tyvar option) list * datatype')
   | Infix
   | Exp     of phrase
