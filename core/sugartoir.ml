@@ -862,7 +862,7 @@ struct
           | TypeAnnotation (e, _) ->
               (* we might consider getting rid of type annotations before here *)
               ec e
-          | Upcast (e, (_, Some t), _) ->
+          | Upcast (e, (_, t), _) ->
               cofv (I.coerce (ev e, t))
           | ConstructorLit (name, None, t) ->
               cofv (I.inject (name, I.record ([], None), t))
@@ -1012,8 +1012,7 @@ struct
                   (* These things should all have been desugared already *)
           | Section (Section.Project _)
           | InfixAppl ((_, BinaryOp.RegexMatch _), _, _)
-          | Escape _
-          | Upcast _ ->
+          | Escape _ ->
               Debug.print ("oops: " ^ show_phrasenode e);
               assert false
 

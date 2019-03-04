@@ -130,7 +130,7 @@ and phrasenode =
   | Projection       of phrase * name
   | With             of phrase * (name * phrase) list
   | TypeAnnotation   of phrase * datatype'
-  | Upcast           of phrase * datatype' * datatype'
+  | Upcast           of phrase * (Datatype.with_pos * Types.datatype) * datatype'
   | ConstructorLit   of name * phrase option * Types.datatype
   | DoOperation      of name * phrase list * Types.datatype
   | Handle           of handler
@@ -378,8 +378,8 @@ module Desugar = struct
        With (phrase phr, List.map (fun (n, p) -> (n, phrase p)) fields)
     | Sugartypes.TypeAnnotation (phr, ty') ->
        TypeAnnotation (phrase phr, datatype' ty')
-    | Sugartypes.Upcast (phr, ty1, ty2) ->
-       Upcast (phrase phr, datatype' ty1, datatype' ty2)
+    | Sugartypes.Upcast (phr, (dt, Some ty1), ty2) ->
+       Upcast (phrase phr, (Datatype.with_pos dt, ty1), datatype' ty2)
     | Sugartypes.ConstructorLit (name, phr_opt, Some ty) ->
        ConstructorLit (name, phrase_opt phr_opt, ty)
     | Sugartypes.DoOperation (name, phrs, Some ty) ->
@@ -437,6 +437,7 @@ module Desugar = struct
     | Sugartypes.LensFunDepsLit _
     | Sugartypes.Offer (_, _, None)
     | Sugartypes.DoOperation (_, _, None)
+    | Sugartypes.Upcast (_, (_, None), _)
     | Sugartypes.QualifiedVar _
     | Sugartypes.FunLit _
     | Sugartypes.Page _
