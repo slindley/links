@@ -96,7 +96,7 @@ and phrasenode =
   | Query            of (phrase * phrase) option * phrase *
                           Types.datatype option
   | RangeLit         of (phrase * phrase)
-  | ListLit          of phrase list * Types.datatype option
+  | ListLit          of phrase list * Types.datatype
   | Escape           of Binder.with_pos * phrase
   | Section          of Section.t
   | Conditional      of phrase * phrase * phrase
@@ -112,28 +112,28 @@ and phrasenode =
   | With             of phrase * (name * phrase) list
   | TypeAnnotation   of phrase * datatype'
   | Upcast           of phrase * datatype' * datatype'
-  | ConstructorLit   of name * phrase option * Types.datatype option
-  | DoOperation      of name * phrase list * Types.datatype option
+  | ConstructorLit   of name * phrase option * Types.datatype
+  | DoOperation      of name * phrase list * Types.datatype
   | Handle           of handler
   | Switch           of phrase * (Pattern.with_pos * phrase) list *
-                          Types.datatype option
+                          Types.datatype
   | DatabaseLit      of phrase * (phrase option * phrase option)
   | TableLit         of phrase * (Datatype.with_pos * (Types.datatype *
-                           Types.datatype * Types.datatype) option) *
+                           Types.datatype * Types.datatype)) *
                           (name * fieldconstraint list) list * phrase * phrase
   | DBDelete         of Pattern.with_pos * phrase * phrase option
   | DBUpdate         of Pattern.with_pos * phrase * phrase option *
                           (name * phrase) list
-  | LensLit          of phrase * Types.lens_sort option
+  | LensLit          of phrase * Types.lens_sort
   (* the lens keys lit is a literal that takes an expression and is converted
      into a LensLit with the corresponding table keys marked in the lens_sort *)
   | LensDropLit      of phrase * string * string * phrase *
-                          Types.lens_sort option
-  | LensSelectLit    of phrase * phrase * Types.lens_sort option
+                          Types.lens_sort
+  | LensSelectLit    of phrase * phrase * Types.lens_sort
   | LensJoinLit      of phrase * phrase * phrase * phrase * phrase *
-                          Types.lens_sort option
-  | LensGetLit       of phrase * Types.datatype option
-  | LensPutLit       of phrase * phrase * Types.datatype option
+                          Types.lens_sort
+  | LensGetLit       of phrase * Types.datatype
+  | LensPutLit       of phrase * phrase * Types.datatype
   | Xml              of name * (name * (phrase list)) list * phrase option *
                           phrase list
   | TextNode         of string
@@ -141,7 +141,7 @@ and phrasenode =
   | Select           of name * phrase
   (* choice *)
   | Offer            of phrase * (Pattern.with_pos * phrase) list *
-                          Types.datatype option
+                          Types.datatype
 and phrase = phrasenode WithPos.t
 and bindingnode =
   | Val     of (Pattern.with_pos * (tyvar list * phrase) * Location.t *
@@ -329,8 +329,8 @@ module Desugar = struct
        Query (ph_opt', phrase ph, ty_opt)
     | Sugartypes.RangeLit (p1, p2) ->
        RangeLit (phrase p1, phrase p2)
-    | Sugartypes.ListLit (elems, ty_opt) ->
-       ListLit (phrases elems, ty_opt)
+    | Sugartypes.ListLit (elems, Some ty) ->
+       ListLit (phrases elems, ty)
     | Sugartypes.Escape (bndr, phr) ->
        Escape (bndr, phrase phr)
     | Sugartypes.Section sec ->
@@ -361,19 +361,19 @@ module Desugar = struct
        TypeAnnotation (phrase phr, datatype' ty')
     | Sugartypes.Upcast (phr, ty1, ty2) ->
        Upcast (phrase phr, datatype' ty1, datatype' ty2)
-    | Sugartypes.ConstructorLit (name, phr_opt, ty_opt) ->
-       ConstructorLit (name, phrase_opt phr_opt, ty_opt)
-    | Sugartypes.DoOperation (name, phrs, ty_opt) ->
-       DoOperation (name, phrases phrs, ty_opt)
+    | Sugartypes.ConstructorLit (name, phr_opt, Some ty) ->
+       ConstructorLit (name, phrase_opt phr_opt, ty)
+    | Sugartypes.DoOperation (name, phrs, Some ty) ->
+       DoOperation (name, phrases phrs, ty)
     | Sugartypes.Handle hdlr ->
        Handle (handler hdlr)
-    | Sugartypes.Switch (scrut, cases, ty_opt) ->
+    | Sugartypes.Switch (scrut, cases, Some ty) ->
        Switch (phrase scrut, List.map (fun (pat, case) ->
                                  (Pattern.with_pos pat, phrase case)) cases,
-               ty_opt)
+               ty)
     | Sugartypes.DatabaseLit (phr, (p1, p2)) ->
        DatabaseLit (phrase phr, (phrase_opt p1, phrase_opt p2))
-    | Sugartypes.TableLit (phr, (dt, tys), constraints, p1, p2) ->
+    | Sugartypes.TableLit (phr, (dt, Some tys), constraints, p1, p2) ->
        TableLit (phrase phr, (Datatype.with_pos dt, tys), constraints,
                  phrase p1, phrase p2)
     | Sugartypes.DBDelete (pat, phr, phr_opt) ->
@@ -381,18 +381,18 @@ module Desugar = struct
     | Sugartypes.DBUpdate (pat, p1, phr_opt, exps) ->
        DBUpdate (Pattern.with_pos pat, phrase p1, phrase_opt phr_opt,
                  List.map (fun (n,p) -> (n, phrase p)) exps)
-    | Sugartypes.LensLit (phr, sort) ->
+    | Sugartypes.LensLit (phr, Some sort) ->
        LensLit (phrase phr, sort)
-    | Sugartypes.LensDropLit (p1, s1, s2, p2, sort) ->
+    | Sugartypes.LensDropLit (p1, s1, s2, p2, Some sort) ->
        LensDropLit (phrase p1, s1, s2, phrase p2, sort)
-    | Sugartypes.LensSelectLit (p1, p2, sort) ->
+    | Sugartypes.LensSelectLit (p1, p2, Some sort) ->
        LensSelectLit (phrase p1, phrase p2, sort)
-    | Sugartypes.LensJoinLit (p1, p2, p3, p4, p5, sort) ->
+    | Sugartypes.LensJoinLit (p1, p2, p3, p4, p5, Some sort) ->
        LensJoinLit (phrase p1, phrase p2, phrase p3, phrase p4, phrase p5,
                     sort)
-    | Sugartypes.LensGetLit (p, ty) ->
+    | Sugartypes.LensGetLit (p, Some ty) ->
        LensGetLit (phrase p, ty)
-    | Sugartypes.LensPutLit (p1, p2, ty) ->
+    | Sugartypes.LensPutLit (p1, p2, Some ty) ->
        LensPutLit (phrase p1, phrase p2, ty)
     | Sugartypes.Xml (n, attrs, p, children) ->
        Xml (n, List.map (fun (n, phs) -> (n, phrases phs)) attrs, phrase_opt p,
@@ -401,11 +401,23 @@ module Desugar = struct
        TextNode str
     | Sugartypes.Select (n, p) ->
        Select (n, phrase p)
-    | Sugartypes.Offer (p, cases, ty) ->
+    | Sugartypes.Offer (p, cases, Some ty) ->
        Offer (phrase p, List.map (fun (pat, case) ->
                             (Pattern.with_pos pat, phrase case)) cases, ty)
+    | Sugartypes.ListLit (_, None)
+    | Sugartypes.ConstructorLit (_, _, None)
+    | Sugartypes.Switch (_, _, None)
+    | Sugartypes.TableLit (_, (_, None), _, _, _)
+    | Sugartypes.LensLit (_, None)
+    | Sugartypes.LensPutLit (_, _, None)
+    | Sugartypes.LensDropLit (_, _, _, _, None)
+    | Sugartypes.LensSelectLit (_, _, None)
+    | Sugartypes.LensJoinLit (_, _, _, _, _, None)
+    | Sugartypes.LensGetLit (_, None)
     | Sugartypes.LensKeysLit _
     | Sugartypes.LensFunDepsLit _
+    | Sugartypes.Offer (_, _, None)
+    | Sugartypes.DoOperation (_, _, None)
     | Sugartypes.QualifiedVar _
     | Sugartypes.FunLit _
     | Sugartypes.Page _
@@ -468,249 +480,3 @@ module Desugar = struct
   let program : Sugartypes.program -> program =
     fun (binds, phr) -> (List.map binding binds, phrase_opt phr)
 end
-
-(*
-(* Why does ConcreteSyntaxError take an
-   unresolved position and yet
-   PatternDuplicateNameError and
-   RedundantPatternMatch take resolved positions?
-*)
-exception ConcreteSyntaxError of (string * position)
-exception PatternDuplicateNameError of (SourceCode.pos * string)
-exception RedundantPatternMatch of SourceCode.pos
-
-let tabstr : tyvar list * phrasenode -> phrasenode = fun (tyvars, e) ->
-  match tyvars with
-    | [] -> e
-    | _  -> TAbstr (Types.box_quantifiers tyvars, with_dummy_pos e)
-
-let tappl : phrasenode * tyarg list -> phrasenode = fun (e, tys) ->
-  match tys with
-    | [] -> e
-    | _  -> TAppl (with_dummy_pos e, tys)
-
-module Freevars =
-struct
-  open Utility
-  open StringSet
-
-  let union_map f = union_all -<- List.map f
-  let option_map f = opt_app f empty
-
-  let rec pattern ({node; _} : Pattern.with_pos) : StringSet.t =
-    let open Pattern in
-    match node with
-    | Any
-    | Nil
-    | Constant _
-    | Negative _            -> empty
-    | Tuple ps
-    | List ps               -> union_map pattern ps
-    | Cons (p1, p2)         -> union (pattern p1) (pattern p2)
-    | Variant (_, popt)     -> option_map pattern popt
-    | Effect (_, ps, kopt)  -> union (union_map pattern ps) (pattern kopt)
-    | Record (fields, popt) ->
-       union (option_map pattern popt)
-         (union_map (snd ->- pattern) fields)
-    | Variable bndr         -> singleton (name_of_binder bndr)
-    | As (bndr, pat)        -> add (name_of_binder bndr) (pattern pat)
-    | HasType (pat, _)      -> pattern pat
-
-
-  let rec formlet_bound ({node; _} : phrase) : StringSet.t = match node with
-    | Xml (_, _, _, children) -> union_map formlet_bound children
-    | FormBinding (_, pat) -> pattern pat
-    | _ -> empty
-
-  let rec phrase (p : phrase) : StringSet.t =
-    let p = p.node in
-    match p with
-    | Var v -> singleton v
-    | Section (Section.Name n) -> singleton n
-
-    | Constant _
-    | TextNode _
-    | Section (Section.Minus|Section.FloatMinus|Section.Project _) -> empty
-
-    | Spawn (_, _, p, _)
-    | TAbstr (_, p)
-    | TAppl (p, _)
-    | FormBinding (p, _)
-    | Projection (p, _)
-    | Page p
-    | PagePlacement p
-    | Upcast (p, _, _)
-    | Select (_, p)
-    | TypeAnnotation (p, _) -> phrase p
-
-    | ListLit (ps, _)
-    | TupleLit ps -> union_map phrase ps
-
-    | LensLit (l, _) -> phrase l
-    (* this should be converted to `LensLit during typeSugar *)
-    | LensFunDepsLit _ -> assert false
-    | LensKeysLit (l, _, _) -> phrase l
-    | LensSelectLit (l, _, _) -> phrase l
-    | LensDropLit (l, _, _, _, _) -> phrase l
-    | LensJoinLit (l1, l2, _, _, _, _) -> union_all [phrase l1; phrase l2]
-
-    | LensGetLit (l, _) -> phrase l
-    | LensPutLit (l, data, _) -> union_all [phrase l; phrase data]
-
-    | Query (None, p, _) -> phrase p
-    | Query (Some (limit, offset), p, _) ->
-       union_all [phrase limit; phrase offset; phrase p]
-
-    | Escape (v, p) -> diff (phrase p) (singleton (name_of_binder v))
-    | FormletPlacement (p1, p2, p3)
-    | Conditional (p1, p2, p3) -> union_map phrase [p1;p2;p3]
-    | Block b -> block b
-    | InfixAppl ((_, BinaryOp.Name n), p1, p2) ->
-       union (singleton n) (union_map phrase [p1;p2])
-    | InfixAppl (_, p1, p2) -> union_map phrase [p1;p2]
-    | RangeLit (p1, p2) -> union_map phrase [p1;p2]
-    | Regex r -> regex r
-    | UnaryAppl (_, p) -> phrase p
-    | FnAppl (p, ps) -> union_map phrase (p::ps)
-    | RecordLit (fields, p) ->
-        union (union_map (snd ->- phrase) fields)
-          (option_map phrase p)
-    | With (p, fields) ->
-        union (union_map (snd ->- phrase) fields)
-          (phrase p)
-    | ConstructorLit (_, popt, _) -> option_map phrase popt
-    | DatabaseLit (p, (popt1, popt2)) ->
-        union_all [phrase p; option_map phrase popt1; option_map phrase popt2]
-    | DBInsert (p1, _labels, p2, popt) ->
-        union_all [phrase p1; phrase p2; option_map phrase popt]
-    | TableLit (p1, _, _, _, p2) -> union (phrase p1) (phrase p2)
-    | Xml (_, attrs, attrexp, children) ->
-        union_all
-          [union_map (snd ->- union_map phrase) attrs;
-           option_map phrase attrexp;
-           union_map phrase children]
-    | Formlet (xml, yields) ->
-        let binds = formlet_bound xml in
-          union (phrase xml) (diff (phrase yields) binds)
-    | HandlerLit hnlit -> handlerlit hnlit
-    | FunLit (_, _, fnlit, _) -> funlit fnlit
-    | Iteration (generators, body, where, orderby) ->
-        let xs = union_map (function
-                             | List (_, source)
-                             | Table (_, source) -> phrase source) generators in
-        let pat_bound = union_map (function
-                                  | List (pat, _)
-                                  | Table (pat, _) -> pattern pat) generators in
-          union_all [xs;
-                     diff (phrase body) pat_bound;
-                     diff (option_map phrase where) pat_bound;
-                     diff (option_map phrase orderby) pat_bound]
-    | Handle { sh_expr = e; sh_effect_cases = eff_cases;
-               sh_value_cases = val_cases; sh_descr = descr } ->
-       let params_bound =
-         option_map
-           (fun params -> union_map (snd ->- pattern) params.shp_bindings)
-           descr.shd_params
-       in
-       union_all [phrase e;
-                  union_map case eff_cases;
-                  union_map case val_cases;
-                  diff (option_map (fun params -> union_map (fst ->- phrase)
-                                                    params.shp_bindings)
-                          descr.shd_params) params_bound]
-    | Switch (p, cases, _)
-    | Offer (p, cases, _) -> union (phrase p) (union_map case cases)
-    | CP cp -> cp_phrase cp
-    | Receive (cases, _) -> union_map case cases
-    | DBDelete (pat, p, where) ->
-        union (phrase p)
-          (diff (option_map phrase where)
-             (pattern pat))
-    | DBUpdate (pat, from, where, fields) ->
-        let pat_bound = pattern pat in
-          union_all [phrase from;
-                     diff (option_map phrase where) pat_bound;
-                     diff (union_map (snd ->- phrase) fields) pat_bound]
-    | DoOperation (_, ps, _) -> union_map phrase ps
-    | QualifiedVar _ -> empty
-    | TryInOtherwise (p1, pat, p2, p3, _ty) ->
-       union (union_map phrase [p1; p2; p3]) (pattern pat)
-    | Raise -> empty
-  and binding ({node = binding; _}: binding)
-      : StringSet.t (* vars bound in the pattern *)
-      * StringSet.t (* free vars in the rhs *) =
-    match binding with
-    | Val (pat, (_, rhs), _, _) -> pattern pat, phrase rhs
-    | Handler (bndr, hnlit, _) ->
-       let name = singleton (name_of_binder bndr) in
-       name, (diff (handlerlit hnlit) name)
-    | Fun (bndr, _, (_, fn), _, _) ->
-       let name = singleton (name_of_binder bndr) in
-       name, (diff (funlit fn) name)
-    | Funs funs ->
-        let names, rhss =
-          List.fold_right
-            (fun (bndr, _, (_, rhs), _, _, _) (names, rhss) ->
-               (add (name_of_binder bndr) names, rhs::rhss))
-            funs
-            (empty, []) in
-          names, union_map (fun rhs -> diff (funlit rhs) names) rhss
-    | Foreign (bndr, _, _, _, _) -> singleton (name_of_binder bndr), empty
-    | QualifiedImport _
-    | Type _
-    | Infix -> empty, empty
-    | Exp p -> empty, phrase p
-    | AlienBlock (_, _, decls) ->
-        let bound_foreigns =
-          List.fold_left (fun acc (bndr, _) ->
-              StringSet.add (name_of_binder bndr) acc)
-            (StringSet.empty) decls in
-        bound_foreigns, empty
-        (* TODO: this needs to be implemented *)
-    | Module _ -> failwith "Freevars for modules not implemented yet"
-  and funlit (args, body : funlit) : StringSet.t =
-    diff (phrase body) (union_map (union_map pattern) args)
-  and handlerlit (_, m, cases, params : handlerlit) : StringSet.t =
-    union_all [diff (union_map case cases)
-                 (option_map (union_map (union_map pattern)) params); pattern m]
-  and block (binds, expr : binding list * phrase) : StringSet.t =
-    ListLabels.fold_right binds ~init:(phrase expr)
-      ~f:(fun bind bodyfree ->
-            let patbound, exprfree = binding bind in
-              union exprfree (diff bodyfree patbound))
-  and case (pat, body) : StringSet.t = diff (phrase body) (pattern pat)
-  and regex = function
-    | Range _
-    | Simply _
-    | Any
-    | StartAnchor
-    | EndAnchor
-    | Quote _ -> empty
-    | Seq rs -> union_map regex rs
-    | Alternate (r1, r2) -> union (regex r1) (regex r2)
-    | Group r
-    | Repeat (_, r) -> regex r
-    | Splice p -> phrase p
-    | Replace (r, Literal _) -> regex r
-    | Replace (r, SpliceExpr p) -> union (regex r) (phrase p)
-  and cp_phrase {node = p; _ } = match p with
-    | CPUnquote e -> block e
-    | CPGrab ((c, _t), Some bndr, p) ->
-      union (singleton c) (diff (cp_phrase p) (singleton (name_of_binder bndr)))
-    | CPGrab ((c, _t), None, p) -> union (singleton c) (cp_phrase p)
-    | CPGive ((c, _t), e, p) -> union (singleton c) (union (option_map phrase e)
-                                                           (cp_phrase p))
-    | CPGiveNothing bndr -> singleton (name_of_binder bndr)
-    | CPSelect (bndr, _label, p) ->
-      union (singleton (name_of_binder bndr)) (cp_phrase p)
-    | CPOffer (bndr, cases) ->
-      union (singleton (name_of_binder bndr))
-            (union_map (fun (_label, p) -> cp_phrase p) cases)
-    | CPLink (bndr1, bndr2) ->
-      union (singleton (name_of_binder bndr1))
-            (singleton (name_of_binder bndr2))
-    | CPComp (bndr, left, right) ->
-       diff (union (cp_phrase left) (cp_phrase right))
-            (singleton (name_of_binder bndr))
-end
-*)

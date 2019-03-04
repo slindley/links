@@ -767,11 +767,11 @@ struct
           | Var x -> cofv (I.var (lookup_name_and_type x env))
           | RangeLit (low, high) ->
               I.apply (instantiate_mb "intRange", [ev low; ev high])
-          | ListLit ([], Some t) ->
+          | ListLit ([], t) ->
               cofv (instantiate "Nil" [`Type t])
-          | ListLit (e::es, Some t) ->
+          | ListLit (e::es, t) ->
               cofv (I.apply_pure(instantiate "Cons" [`Type t; `Row eff],
-                                 [ev e; ev (WithPos.make ~pos (ListLit (es, Some t)))]))
+                                 [ev e; ev (WithPos.make ~pos (ListLit (es, t)))]))
           | Escape (bndr, body) when has_type bndr ->
              let k  = to_name bndr in
              let kt = to_type_exn bndr in
@@ -864,11 +864,11 @@ struct
               ec e
           | Upcast (e, (_, Some t), _) ->
               cofv (I.coerce (ev e, t))
-          | ConstructorLit (name, None, Some t) ->
+          | ConstructorLit (name, None, t) ->
               cofv (I.inject (name, I.record ([], None), t))
-          | ConstructorLit (name, Some e, Some t) ->
+          | ConstructorLit (name, Some e, t) ->
               cofv (I.inject (name, ev e, t))
-          | DoOperation (name, ps, Some t) ->
+          | DoOperation (name, ps, t) ->
              let vs = evs ps in
              I.do_operation (name, vs, t)
           | Handle { sh_expr; sh_effect_cases; sh_value_cases; sh_descr } ->
@@ -902,7 +902,7 @@ struct
                   sh_value_cases
              in
              I.handle env (ec sh_expr, val_cases, eff_cases, params, sh_descr)
-          | Switch (e, cases, Some t) ->
+          | Switch (e, cases, t) ->
               let cases =
                 List.map
                   (fun (p, body) ->
@@ -922,32 +922,32 @@ struct
               in
                 I.database
                   (ev (WithPos.make ~pos (RecordLit ([("name", name); ("driver", driver); ("args", args)], None))))
-          | LensLit (table, Some t) ->
+          | LensLit (table, t) ->
               let table = ev table in
                 I.lens_handle (table, t)
-          | LensDropLit (lens, drop, key, default, Some t) ->
+          | LensDropLit (lens, drop, key, default, t) ->
               let lens = ev lens in
               let default = ev default in
                 I.lens_drop_handle (lens, drop, key, default, t)
-          | LensSelectLit (lens, pred, Some t) ->
+          | LensSelectLit (lens, pred, t) ->
               let lens = ev lens in
               let pred = Lens.Phrase.of_phrase pred in
                 I.lens_select_handle (lens, pred, t)
-          | LensJoinLit (lens1, lens2, on, left, right, Some t) ->
+          | LensJoinLit (lens1, lens2, on, left, right, t) ->
               let lens1 = ev lens1 in
               let lens2 = ev lens2 in
               let on = Lens.Types.cols_of_phrase on in
               let left = Lens.Phrase.of_phrase left in
               let right = Lens.Phrase.of_phrase right in
                 I.lens_join_handle (lens1, lens2, on, left, right, t)
-          | LensGetLit (lens, Some t) ->
+          | LensGetLit (lens, t) ->
               let lens = ev lens in
                 I.lens_get (lens, t)
-          | LensPutLit (lens, data, Some t) ->
+          | LensPutLit (lens, data, t) ->
               let lens = ev lens in
               let data = ev data in
                 I.lens_put (lens, data, t)
-          | TableLit (name, (_, Some (readtype, writetype, neededtype)), _constraints, keys, db) ->
+          | TableLit (name, (_, (readtype, writetype, neededtype)), _constraints, keys, db) ->
               I.table_handle (ev db, ev name, ev keys, (readtype, writetype, neededtype))
           | Xml (tag, attrs, attrexp, children) ->
                if tag = "#" then
@@ -999,7 +999,7 @@ struct
 
           | Select (l, e) ->
              I.select (l, ev e)
-          | Offer (e, cases, Some t) ->
+          | Offer (e, cases, t) ->
               let cases =
                 List.map
                   (fun (p, body) ->
@@ -1012,20 +1012,8 @@ struct
                   (* These things should all have been desugared already *)
           | Section (Section.Project _)
           | InfixAppl ((_, BinaryOp.RegexMatch _), _, _)
-          | ListLit _
           | Escape _
-          | Upcast _
-          | ConstructorLit _
-          | Switch _
-          | TableLit _
-          | LensLit _
-          | LensDropLit _
-          | LensSelectLit _
-          | LensJoinLit _
-          | LensGetLit _
-          | LensPutLit _
-          | Offer _
-          | DoOperation _ ->
+          | Upcast _ ->
               Debug.print ("oops: " ^ show_phrasenode e);
               assert false
 
