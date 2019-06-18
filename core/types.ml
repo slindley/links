@@ -157,7 +157,7 @@ and typ =    [ `Not_typed
     | `Application of (Abstype.t * type_arg list)
     | `RecursiveApplication of rec_appl
     | `MetaTypeVar of meta_type_var
-    | `ForAll of (quantifier list ref * typ)
+    | `ForAll of (quantifier list * typ)
     | (typ, row) session_type_basis ]
 and field_spec     = [ `Present of typ | `Absent | `Var of meta_presence_var ]
 and field_spec_map = field_spec field_env
@@ -379,13 +379,13 @@ struct
      | `MetaTypeVar mtv ->
         let (mtv', o) = o#meta_type_var mtv in
           (`MetaTypeVar mtv', o)
-     | `ForAll (rqs,t) ->
+     | `ForAll (qs,t) ->
          let (qs', o) = List.fold_right (fun q (acc_qs, o) ->
             let (q',o) = o#quantifier q in
             (q' :: acc_qs,o)
-          ) (unbox_quantifiers rqs) ([],o) in
+          ) qs ([],o) in
          let (t', o) = o#typ t in
-         (`ForAll (box_quantifiers qs', t'), o)
+         (`ForAll (qs', t'), o)
      | `Input (t1, t2) ->
          let (t1', o) = o#typ t1 in
          let (t2', o) = o#typ t2 in
@@ -688,7 +688,7 @@ let rec is_unl_type : (var_set * var_set) -> typ -> bool =
            * linearity information, meaning that (r_linear ()) will return (Some lin). *)
           OptionUtils.opt_app (not) true (r_linear ())
       | `MetaTypeVar point -> is_unl_point is_unl_type (rec_vars, quant_vars) point
-      | `ForAll (qs, t) -> is_unl_type (rec_vars, add_quantified_vars !qs quant_vars) t
+      | `ForAll (qs, t) -> is_unl_type (rec_vars, add_quantified_vars qs quant_vars) t
       | `Dual s -> is_unl_type (rec_vars, quant_vars) s
       | `End -> false
       | #session_type -> false
@@ -742,7 +742,7 @@ let rec type_can_be_unl : var_set * var_set -> typ -> bool =
          * before `type_can_be_unl` is called *)
         not (OptionUtils.val_of (r_linear ()))
     | `MetaTypeVar point -> point_can_be_unl type_can_be_unl vars point
-    | `ForAll (qs, t) -> type_can_be_unl (rec_vars, add_quantified_vars !qs quant_vars) t
+    | `ForAll (qs, t) -> type_can_be_unl (rec_vars, add_quantified_vars qs quant_vars) t
     | `Dual s -> type_can_be_unl vars s
     | `End -> false
     | #session_type -> false
@@ -784,7 +784,7 @@ let rec make_type_unl : var_set * var_set -> typ -> unit =
     | `RecursiveApplication _ -> ()
     | `Record r | `Variant r -> make_row_unl vars r
     | `Alias (_, t) -> make_type_unl vars t
-    | `ForAll (qs, t) -> make_type_unl (rec_vars, add_quantified_vars !qs quant_vars) t
+    | `ForAll (qs, t) -> make_type_unl (rec_vars, add_quantified_vars qs quant_vars) t
     | `MetaTypeVar point -> make_point_unl make_type_unl vars point
     | `Dual s -> make_type_unl vars s
     | _ -> assert false
@@ -1090,10 +1090,10 @@ let concrete_type rec_names t =
           begin
             match ct rec_names t with
               | `ForAll (qs', t') ->
-                  `ForAll (box_quantifiers (unbox_quantifiers qs @ unbox_quantifiers qs'), t')
+                  `ForAll (qs @ qs', t')
               | t ->
                   begin
-                    match unbox_quantifiers qs with
+                    match qs with
                       | [] -> t
                       | _ -> `ForAll (qs, t)
                   end
@@ -1107,7 +1107,9 @@ let concrete_type rec_names t =
     forall a.forall b.forall c.(a) -> (b) -> c
     -->
     forall a,b,c.(a) -> (b) -> c
-*)
+ *)
+    (* old version using references *)
+(*
 let hoist_quantifiers =
   function
     | `ForAll (qsref, t) ->
@@ -1126,8 +1128,29 @@ let hoist_quantifiers =
             | _ -> [] in
 
         let qss = hq t in
-          qsref := List.concat (!qsref :: qss)
+        qsref := List.concat (!qsref :: qss)
     | _ -> ()
+ *)
+
+let hoist_quantifiers =
+  function
+    | `ForAll (qs, t) ->
+        let rec hq =
+          function
+            | `MetaTypeVar point ->
+                begin
+                  match Unionfind.find point with
+                    | `Body t -> hq t
+                    | _ -> [],`MetaTypeVar point
+                end
+            | `ForAll (qs, t) ->
+                let qs',t' = hq t in
+		qs::qs',t'
+            | t -> [],t in
+
+        let qss,t' = hq t in
+        `ForAll(List.concat (qs :: qss),t')
+    | t -> t
 
 (** remove any redundant top-level `Vars from a presence flag. *)
 let rec concrete_field_spec f =
@@ -1168,7 +1191,7 @@ let free_type_vars, free_row_type_vars, free_tyarg_vars =
       | `RecursiveApplication { r_args; _ } ->
           S.union_all (List.map (free_tyarg_vars' rec_vars) r_args)
       | `ForAll (tvars, body)    -> S.diff (free_type_vars' rec_vars body)
-                                           (List.fold_right (S.add -<- type_var_number) (unbox_quantifiers tvars) S.empty)
+                                           (List.fold_right (S.add -<- type_var_number) tvars S.empty)
       | `MetaTypeVar point       ->
           begin
             match Unionfind.find point with
@@ -1505,8 +1528,7 @@ and unwrap_row : row -> (row * row_var option) = fun (field_env, row_var, dual) 
 and normalise_datatype rec_names t =
   let nt = normalise_datatype rec_names in
   let nr = normalise_row rec_names in
-    hoist_quantifiers t;
-    match t with
+    match hoist_quantifiers t with
       | `Not_typed
       | `Primitive _             -> t
       | `Function (f, m, t)      ->
@@ -1529,7 +1551,7 @@ and normalise_datatype rec_names t =
             List.map (normalise_type_arg rec_names) app.r_args }
       | `ForAll (qs, body)    ->
           begin
-            match unbox_quantifiers qs with
+            match qs with
               | [] -> nt body
               | _ -> `ForAll (qs, nt body)
           end
@@ -1687,7 +1709,7 @@ let normalise_quantifier = fun q ->
 (*     | _ -> None *)
 
 let for_all : quantifier list * datatype -> datatype = fun (qs, t) ->
-  concrete_type (`ForAll (box_quantifiers qs, t))
+  concrete_type (`ForAll (qs, t))
 
 (* useful types *)
 let unit_type     = `Record (make_empty_closed_row ())
@@ -1802,7 +1824,7 @@ struct
                    let var, spec = varspec_of_tyvar tyvar in
                      TypeVarSet.add var bound_vars, (var, spec)::vars)
                 (bound_vars, [])
-                (unbox_quantifiers tyvars)
+                tyvars
             in
               (List.rev vars) @ (free_bound_type_vars ~include_aliases bound_vars body)
         | `Alias ((_,ts), d) when include_aliases ->
@@ -2233,7 +2255,6 @@ struct
           | `Variant r -> "[|" ^ row "|" context p r ^ "|]"
           | `Effect r -> "{" ^ row "," context p r ^ "}"
           | `ForAll (tyvars, body) ->
-              let tyvars = unbox_quantifiers tyvars in
               let bound_vars =
                 List.fold_left
                   (fun bound_vars tyvar ->
@@ -2414,7 +2435,7 @@ let rec flexible_type_vars : TypeVarSet.t -> datatype -> quantifier TypeVarMap.t
                  let var = var_of_quantifier tyvar in
                    TypeVarSet.add var bound_vars)
                 bound_vars
-                (unbox_quantifiers tyvars)
+                tyvars
           in
             flexible_type_vars bound_vars body
       | `Variant row -> row_flexible_type_vars bound_vars row
@@ -2621,7 +2642,7 @@ let make_fresh_envs : datatype -> datatype IntMap.t * row IntMap.t * field_spec 
           make_env
             (List.fold_right
                (fun q boundvars -> S.add (var_of_quantifier q) boundvars)
-               (unbox_quantifiers qs)
+               qs
                boundvars)
             t
       | `MetaTypeVar point       ->

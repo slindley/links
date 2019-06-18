@@ -322,7 +322,7 @@ module Desugar = struct
         | Forall (qs, t) ->
             let (qs: Types.quantifier list), var_env = desugar_quantifiers var_env qs t pos in
             let t = datatype var_env t in
-              `ForAll (Types.box_quantifiers qs, t)
+              `ForAll (qs, t)
         | Unit -> Types.unit_type
         | Tuple ks ->
             let labels = map string_of_int (Utility.fromTo 1 (1 + length ks)) in

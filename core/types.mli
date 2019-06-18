@@ -111,7 +111,7 @@ and typ =
     | `Application of (Abstype.t * type_arg list)
     | `RecursiveApplication of rec_appl
     | `MetaTypeVar of meta_type_var
-    | `ForAll of (quantifier list ref * typ)
+    | `ForAll of (quantifier list * typ)
     | (typ, row) session_type_basis ]
 and field_spec = [ `Present of typ | `Absent | `Var of meta_presence_var ]
 and field_spec_map = field_spec field_env
@@ -190,7 +190,7 @@ val normalise_datatype : datatype -> datatype
 val normalise_row : row -> row
 val normalise_typing_environment : typing_environment -> typing_environment
 
-val hoist_quantifiers : datatype -> unit
+val hoist_quantifiers : datatype -> datatype
 
 val is_rigid_quantifier : quantifier -> bool
 

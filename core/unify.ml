@@ -116,8 +116,7 @@ let rec eq_types : (datatype * datatype) -> bool =
           begin match unalias t2 with
             | `ForAll (qs', t') ->
                 List.for_all2 (fun q q' -> eq_quantifier (q, q'))
-                  (Types.unbox_quantifiers qs)
-                  (Types.unbox_quantifiers qs') &&
+                  qs qs' &&
                   eq_types (t, t')
             | _ -> false
           end
@@ -283,7 +282,7 @@ let rec unify' : unify_env -> (datatype * datatype) -> unit =
 
   let ignore_empty_quantifiers =
     function
-    | `ForAll (qs, t) when Types.unbox_quantifiers qs = [] -> t
+    | `ForAll (qs, t) when qs = [] -> t
     | t -> t in
 
   (* make sure the contents of a point is concrete *)
@@ -300,17 +299,15 @@ let rec unify' : unify_env -> (datatype * datatype) -> unit =
     | _ -> () in
 
   fun (t1, t2) ->
-  let () = hoist_quantifiers t1 in
-  let () = hoist_quantifiers t2 in
+  let t1 = hoist_quantifiers t1 in
+  let t2 = hoist_quantifiers t2 in
 
   let t1 = ignore_empty_quantifiers t1 in
   let t2 = ignore_empty_quantifiers t2 in
 
   let mono_of_type =
     function
-    | `ForAll (qs, t) when List.for_all (fun q -> not (is_rigid_quantifier q)) (unbox_quantifiers qs) ->
-       (* WARNING: side-effect! *)
-       qs := [];
+    | `ForAll (qs, t) when List.for_all (fun q -> not (is_rigid_quantifier q)) qs ->
        Some t
     | _ -> None in
 
@@ -634,7 +631,7 @@ let rec unify' : unify_env -> (datatype * datatype) -> unit =
        unify_rec (RecAppl appl) t2
     |  t1, `RecursiveApplication appl->
        unify_rec (RecAppl appl) t1
-    | `ForAll (lsref, lbody), `ForAll (rsref, rbody) ->
+    | `ForAll (lqs, lbody), `ForAll (rqs, rbody) ->
        (* Check that all quantifiers that were originally rigid are still
           distinct *)
        let distinct_rigid_check =
@@ -657,9 +654,6 @@ let rec unify' : unify_env -> (datatype * datatype) -> unit =
          in
          drc (IntSet.empty) in
 
-       let ls = !lsref in
-       let rs = !rsref in
-
        (* collect the variables from a quantifier list into a set *)
        let collect =
          List.fold_right
@@ -667,7 +661,7 @@ let rec unify' : unify_env -> (datatype * datatype) -> unit =
              IntSet.add (Types.var_of_quantifier q) bound_vars) in
 
        (* the original variables before unification *)
-       let original_vars = collect ls (collect rs IntSet.empty) in
+       let original_vars = collect lqs (collect rqs IntSet.empty) in
 
        (* identify which quantifiers start off rigid *)
        let status q =
@@ -690,13 +684,13 @@ let rec unify' : unify_env -> (datatype * datatype) -> unit =
           quantifiers need to be thrown away). Storing the information might
           take more effort than the current implementation which just requires
           the quantifier list to be mutable. *)
-       let lstatus = List.map status ls in
-       let rstatus = List.map status rs in
+       let lstatus = List.map status lqs in
+       let rstatus = List.map status rqs in
 
        let depth, lenv, renv = qstack in
        let depth = depth+1 in
-       let lenv = List.fold_right (fun q lenv -> IntMap.add (var_of_quantifier q) depth lenv) ls lenv in
-       let renv = List.fold_right (fun q renv -> IntMap.add (var_of_quantifier q) depth renv) rs renv in
+       let lenv = List.fold_right (fun q lenv -> IntMap.add (var_of_quantifier q) depth lenv) lqs lenv in
+       let renv = List.fold_right (fun q renv -> IntMap.add (var_of_quantifier q) depth renv) rqs renv in
 
        let () = unify' {rec_env with qstack=(depth, lenv, renv)} (lbody, rbody) in
 
@@ -726,14 +720,14 @@ let rec unify' : unify_env -> (datatype * datatype) -> unit =
           We then propagate any changes due to unification of the bodies back
           into the quantifiers.  *)
 
-       distinct_rigid_check (ls, lstatus);
-       distinct_rigid_check (rs, rstatus);
+       distinct_rigid_check (lqs, lstatus);
+       distinct_rigid_check (rqs, rstatus);
 
-       let ls = Generalise.extract_quantifiers ls in
-       let rs = Generalise.extract_quantifiers rs in
+       let ls = Generalise.extract_quantifiers lqs in
+       let rs = Generalise.extract_quantifiers rqs in
 
-       let lvars = collect ls IntSet.empty in
-       let rvars = collect rs IntSet.empty in
+       let lvars = collect lqs IntSet.empty in
+       let rvars = collect rqs IntSet.empty in
 
        (* throw away any rigid quantifiers that weren't in the original set of
           quantifiers, as they must be unbound or bound at an outer scope *)
@@ -747,7 +741,7 @@ let rec unify' : unify_env -> (datatype * datatype) -> unit =
 
        (* throw away any unpartnered flexible quantifiers.  Raise an error for
           unpartnered rigid quantifiers *)
-       let ls, rs =
+       let _ls, _rs =
          let cull vars qs =
            List.fold_right
              (fun q qs ->
@@ -761,6 +755,7 @@ let rec unify' : unify_env -> (datatype * datatype) -> unit =
              []
          in
          cull rvars ls, cull lvars rs in
+       ()  (* ls, rs above currently unused *)
 
        (* Now we know that ls and rs contain the same quantifiers *)
 
@@ -782,21 +777,22 @@ let rec unify' : unify_env -> (datatype * datatype) -> unit =
        (*       | _ -> raise (Failure (`Msg ("Incompatible quantifiers"))) *)
        (* in *)
        (*   unify_quantifiers (ls, rs); *)
-       lsref := ls;
-       rsref := rs
+(*  REMOVE     lsref := ls;
+    rsref := rs
+*)
     | `ForAll (qs, body), t ->
-       if List.for_all (fun q -> not (Types.is_rigid_quantifier q)) (Types.unbox_quantifiers qs) then
+       if List.for_all (fun q -> not (Types.is_rigid_quantifier q)) qs then
          begin
-           qs := [];
+(* REMOVE            qs := []; *)
            ut (body, t)
          end
        else
          raise (Failure (`Msg ("Can't unify quantified type " ^ string_of_datatype t1 ^
                                  " with unquantified type " ^ string_of_datatype t2)))
     | t, `ForAll (qs, body) ->
-       if List.for_all (fun q -> not (Types.is_rigid_quantifier q)) (Types.unbox_quantifiers qs) then
+       if List.for_all (fun q -> not (Types.is_rigid_quantifier q)) qs then
          begin
-           qs := [];
+(* REMOVE           qs := []; *)
            ut (t, body)
          end
        else

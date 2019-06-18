@@ -118,7 +118,7 @@ struct
         | TAbs (quantifiers, v) ->
           let o = List.fold_left (fun o q -> o#quantifier q) o quantifiers in
           let (_, ti, o) = o#value v in
-          let t = `ForAll (Types.box_quantifiers quantifiers, ti) in
+          let t = `ForAll (quantifiers, ti) in
           let o = List.fold_left (fun o q -> o#quantifier_remove q) o quantifiers in
           (v, t, o)
         | _ -> o#super_value v
@@ -623,10 +623,10 @@ struct
               match TypeUtils.split_quantified_type f_type with
                 | [], t  ->
                   let t' = Instantiate.datatype outer_maps t in
-                  `ForAll (Types.box_quantifiers outer_quantifiers, t')
+                  `ForAll (outer_quantifiers, t')
                 | (f_quantifiers, t) ->
                   let t' = Instantiate.datatype outer_maps t in
-                  `ForAll (Types.box_quantifiers (outer_quantifiers @ f_quantifiers), t') in
+                  `ForAll (outer_quantifiers @ f_quantifiers, t') in
               Var.update_type f_type_generalized f_binder
             end
 

@@ -210,7 +210,7 @@ let instantiate_typ : bool -> datatype -> (type_arg list * datatype) = fun rigid
                  | (var, subkind, `Type _)     -> typ (var, subkind) env
                  | (var, subkind, `Row _)      -> row (var, subkind) env
                  | (var, subkind, `Presence _) -> presence (var, subkind) env)
-            (IntMap.empty, IntMap.empty, IntMap.empty, [], []) (unbox_quantifiers quantifiers) in
+            (IntMap.empty, IntMap.empty, IntMap.empty, [], []) quantifiers in
 
         let tys = List.rev tys in
         let qs = List.rev qs in
@@ -226,7 +226,7 @@ let instantiate_typ : bool -> datatype -> (type_arg list * datatype) = fun rigid
 (*               tys, body *)
 (*             else *)
           if Settings.get_value quantified_instantiation && not(rigid) then
-              tys, `ForAll (box_quantifiers qs, body)
+              tys, `ForAll (qs, body)
           else
             tys, body
     | t -> [], t
@@ -356,7 +356,7 @@ let instantiation_maps_of_type_arguments :
     let tenv, renv, penv = populate_instantiation_maps (Types.string_of_datatype pt) vars tyargs in
     match remaining_quantifiers with
       | [] -> t, (tenv, renv, penv)
-      | _ -> `ForAll (Types.box_quantifiers remaining_quantifiers, t),  (tenv, renv, penv)
+      | _ -> `ForAll (remaining_quantifiers, t),  (tenv, renv, penv)
 
 
 
@@ -371,7 +371,7 @@ let freshen_quantifiers t =
   match concrete_type t with
     | `ForAll (qs, body) ->
         begin
-          match Types.unbox_quantifiers qs with
+          match qs with
             | [] -> body
             | qs ->
                 let qs, tyargs =
@@ -389,7 +389,7 @@ let freshen_quantifiers t =
                                 q, `Presence f)
                        qs)
                 in
-                  `ForAll (Types.box_quantifiers qs, apply_type t tyargs)
+                  `ForAll (qs, apply_type t tyargs)
         end
     | t -> t
 
@@ -404,10 +404,10 @@ let replace_quantifiers t qs' =
             (fun q q' ->
               assert (primary_kind_of_quantifier q = primary_kind_of_quantifier q');
               type_arg_of_quantifier q')
-            (Types.unbox_quantifiers qs)
+            qs
             qs'
         in
-          `ForAll (Types.box_quantifiers qs', apply_type t tyargs)
+          `ForAll (qs', apply_type t tyargs)
     | t -> t
 
 let recursive_application name qs tyargs body =

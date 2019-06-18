@@ -2354,7 +2354,7 @@ let rec type_check : context -> phrase -> phrase * Types.datatype * usagemap =
                    *)
                 let e' =
                   match ftype with
-                  | `ForAll (qs', _) when !qs' <> [] -> TAbstr (Types.unbox_quantifiers qs',  WithPos.make ebody)
+                  | `ForAll (qs', _) when qs' <> [] -> TAbstr (qs',  WithPos.make ebody)
                   | _ -> ebody in
                 e', ftype, StringMap.filter (fun v _ -> not (List.mem v vs)) (usages body)
               else
@@ -2828,7 +2828,7 @@ let rec type_check : context -> phrase -> phrase * Types.datatype * usagemap =
                         List.map
                           (fun q ->
                              q, Types.freshen_quantifier_flexible q)
-                          (Types.unbox_quantifiers qs) in
+                          qs in
 
                       (* quantifiers for the return type *)
                       let rqs =
@@ -3109,7 +3109,7 @@ let rec type_check : context -> phrase -> phrase * Types.datatype * usagemap =
                         List.map
                           (fun q ->
                              q, Types.freshen_quantifier_flexible q)
-                          (Types.unbox_quantifiers qs) in
+                          qs in
 
                       (* type arguments to apply r to *)
                       let tyargs = (snd -<- List.split -<- snd -<- List.split) xs in
@@ -3883,7 +3883,7 @@ and type_binding : context -> binding -> binding * context * usagemap =
                            let extras =
                              let has q =
                                let n = Types.type_var_number q in
-                                 List.exists (fun q -> Types.type_var_number q = n) (Types.unbox_quantifiers inner_tyvars)
+                                 List.exists (fun q -> Types.type_var_number q = n) inner_tyvars
                              in
                                List.map (fun q ->
                                            if has q then None
@@ -4029,7 +4029,7 @@ and type_cp (context : context) = fun {node = p; pos} ->
        let tyargs =
          match Types.concrete_type grab_ty with
          | `ForAll (qs, _t) ->
-            let xs = List.map (fun q -> q, Types.freshen_quantifier_flexible q) (Types.unbox_quantifiers qs) in
+            let xs = List.map (fun q -> q, Types.freshen_quantifier_flexible q) qs in
             let tyargs = (snd -<- List.split -<- snd -<- List.split) xs in
             begin
               match Instantiate.apply_type grab_ty tyargs with
@@ -4059,7 +4059,7 @@ and type_cp (context : context) = fun {node = p; pos} ->
        let tyargs =
          match Types.concrete_type give_ty with
          | `ForAll (qs, _t) ->
-            let xs = List.map (fun q -> q, Types.freshen_quantifier_flexible q) (Types.unbox_quantifiers qs) in
+            let xs = List.map (fun q -> q, Types.freshen_quantifier_flexible q) qs in
             let tyargs = (snd -<- List.split -<- snd -<- List.split) xs in
             begin
               match Instantiate.apply_type give_ty tyargs with

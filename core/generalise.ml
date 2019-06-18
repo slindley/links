@@ -56,7 +56,7 @@ let rec get_type_args : gen_kind -> TypeVarSet.t -> datatype -> type_arg list =
         | `Lens _ -> []
         | `Alias ((_, ts), t) ->
             concat_map (get_type_arg_type_args kind bound_vars) ts @ gt t
-        | `ForAll (qsref, t) ->
+        | `ForAll (qs, t) ->
             (*
                filter out flexible quantifiers
 
@@ -82,8 +82,7 @@ let rec get_type_args : gen_kind -> TypeVarSet.t -> datatype -> type_arg list =
                     free in the function argument.
 
             *)
-            let qs = List.filter Types.is_rigid_quantifier (Types.unbox_quantifiers qsref) in
-              qsref := qs;
+            let qs = List.filter Types.is_rigid_quantifier qs in
               get_type_args kind (List.fold_right (Types.type_var_number ->- TypeVarSet.add) qs bound_vars) t
         | `Application (_, args) ->
             Utility.concat_map (get_type_arg_type_args kind bound_vars) args
@@ -261,8 +260,7 @@ let generalise : gen_kind -> environment -> datatype -> ((quantifier list * type
       begin
         let qs =
           match quantified with
-            | `ForAll (qs, _) ->
-                Types.unbox_quantifiers qs
+            | `ForAll (qs, _) -> qs
             | _ -> []
         in
           if List.length qs <> List.length quantifiers then
