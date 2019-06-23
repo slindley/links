@@ -1601,6 +1601,17 @@ let quantifiers_of_type_args =
            end
        | `Presence _ -> assert false)
 
+let is_rigid_type_arg : type_arg -> 'a =
+  let rigid point =
+    match Unionfind.find point with
+    | `Var (_, _, `Rigid) -> true
+    | _ -> false in
+  function
+  | `Type (`MetaTypeVar point) -> rigid point
+  | `Row (_, point, _)         -> rigid point
+  | `Presence (`Var point)     -> rigid point
+  | _ -> false
+
 (* (\* update a quantifier with any changes to its point *\)
  * let normalise_quantifier = fun q ->
  *   match q with

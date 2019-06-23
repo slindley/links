@@ -3692,11 +3692,16 @@ and type_binding : context -> binding -> binding * context * usagemap =
             else
               (* All rigid type variables in bt should appear in the
                  environment *)
-              let tyvars = Generalise.get_quantifiers context.var_env bt in
-              match tyvars with
-              | [] -> [], erase_pat pat, penv
-              | _ ->
-                 Gripers.value_restriction pos bt
+              let tyargs = Generalise.get_type_args context.var_env bt in
+              if List.exists Types.is_rigid_type_arg tyargs then
+                Gripers.value_restriction pos bt
+              else
+                [], erase_pat pat, penv
+              (* let tyvars = Generalise.get_quantifiers context.var_env bt in
+               * match tyvars with
+               * | [] -> [], erase_pat pat, penv
+               * | _ ->
+               *    Gripers.value_restriction pos bt *)
           in
             Val (pat, (tyvars, body), location, datatype),
             {empty_context with
@@ -4009,7 +4014,7 @@ and type_binding : context -> binding -> binding * context * usagemap =
           ignore (if String.contains (Binder.to_name bndr) '\'' then raise (Errors.prime_alien pos));
           (* Ensure that we quantify FTVs *)
           let (_tyvars, _args), datatype = Utils.generalise context.var_env datatype in
-          let datatype = Instantiate.freshen_quantifiers datatype in
+          (* let datatype = Instantiate.freshen_quantifiers datatype in *)
           (Foreign (Binder.set_type bndr datatype, raw_name, language, file, (dt1, Some datatype)),
            (bind_var empty_context (Binder.to_name bndr, datatype)),
            StringMap.empty)
@@ -4120,21 +4125,13 @@ and type_cp (context : context) = fun {node = p; pos} ->
            Types.make_type_unl a
          else
            Gripers.non_linearity pos uses x a;
-       let grab_ty = (Env.lookup context.var_env "receive") in
-       let tyargs =
-         match Types.concrete_type grab_ty with
-         | `ForAll (qs, _t) ->
- (*            let xs = List.map (fun q -> q, Types.freshen_quantifier_flexible q) (Types.unbox_quantifiers qs) in
- *             let tyargs = (snd -<- List.split -<- snd -<- List.split) xs in *)
-            let tyargs = List.map Types.type_arg_of_quantifier qs in
-            begin
-              match Instantiate.apply_type grab_ty tyargs with
-              | `Function (fps, _fe, _rettype) ->
-                 unify ~pos:pos ~handle:(Gripers.cp_grab "") (Types.make_tuple_type [ctype], fps);
-                 tyargs
-              | _ -> assert false
-            end
-         | _ -> assert false in
+       let (tyargs, grab_ty) = Utils.instantiate context.var_env "receive" in
+       begin
+         match grab_ty with
+         | `Function (fps, _fe, _rettype) ->
+            unify ~pos:pos ~handle:(Gripers.cp_grab "") (Types.make_tuple_type [ctype], fps)
+         | _ -> assert false
+       end;
        CPGrab ((c, Some (ctype, tyargs)), Some (Binder.set_type bndr a), p), pt, use c (StringMap.remove x u)
     | CPGive ((c, _), None, p) ->
        let (_, t, _) = type_check context (with_pos pos (Var c)) in
@@ -4150,22 +4147,13 @@ and type_cp (context : context) = fun {node = p; pos} ->
        unify ~pos:pos ~handle:(Gripers.cp_give c)
              (t, ctype);
        let (p, t, u') = with_channel c s (type_cp (bind_var context (c, s)) p) in
-
-       let give_ty = (Env.lookup context.var_env "send") in
-       let tyargs =
-         match Types.concrete_type give_ty with
-         | `ForAll (qs, _t) ->
-            (* let xs = List.map (fun q -> q, Types.freshen_quantifier_flexible q) (Types.unbox_quantifiers qs) in
-             * let tyargs = (snd -<- List.split -<- snd -<- List.split) xs in *)
-            let tyargs = List.map Types.type_arg_of_quantifier qs in
-            begin
-              match Instantiate.apply_type give_ty tyargs with
-              | `Function (fps, _fe, _rettpe) ->
-                 unify ~pos:pos ~handle:(Gripers.cp_give "") (Types.make_tuple_type [t'; ctype], fps);
-                 tyargs
-              | _ -> assert false
-            end
-         | _ -> assert false in
+       let (tyargs, give_ty) = Utils.instantiate context.var_env "send" in
+       begin
+         match give_ty with
+         | `Function (fps, _fe, _rettpe) ->
+            unify ~pos:pos ~handle:(Gripers.cp_give "") (Types.make_tuple_type [t'; ctype], fps)
+         | _ -> assert false
+       end;
        CPGive ((c, Some (ctype, tyargs)), Some e, p), t, use c (merge_usages [u; u'])
     | CPGiveNothing bndr ->
        let c = Binder.to_name bndr in

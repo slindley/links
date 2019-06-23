@@ -194,6 +194,8 @@ val normalise_typing_environment : typing_environment -> typing_environment
 
 (* val flexible_of_type : datatype -> datatype option *)
 
+val is_rigid_type_arg : type_arg -> bool
+
 (* val normalise_quantifier : quantifier -> quantifier *)
 val for_all : quantifier list * datatype -> datatype
 

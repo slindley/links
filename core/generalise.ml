@@ -118,49 +118,49 @@ and get_type_arg_type_args : gen_kind -> TypeVarSet.t -> type_arg -> type_arg li
       | `Row r -> get_row_type_args kind bound_vars r
       | `Presence f -> get_presence_type_args kind bound_vars f
 
-(* let remove_duplicates =
- *   unduplicate (fun l r ->
- *                  match l, r with
- *                    | `Type (`MetaTypeVar l), `Type (`MetaTypeVar r) -> Unionfind.equivalent l r
- *                    | `Row (_, l, ld), `Row (_, r, rd) -> ld=rd && Unionfind.equivalent l r
- *                    | `Presence (`Var l), `Presence (`Var r) -> Unionfind.equivalent l r
- *                    | _ -> false) *)
+let remove_duplicates =
+  unduplicate (fun l r ->
+                 match l, r with
+                   | `Type (`MetaTypeVar l), `Type (`MetaTypeVar r) -> Unionfind.equivalent l r
+                   | `Row (_, l, ld), `Row (_, r, rd) -> ld=rd && Unionfind.equivalent l r
+                   | `Presence (`Var l), `Presence (`Var r) -> Unionfind.equivalent l r
+                   | _ -> false)
 
-(* let get_type_args kind bound_vars t =
- *   remove_duplicates (get_type_args kind bound_vars t)
- *
- * let get_row_var_type_args kind bound_vars row_var =
+let get_type_args kind bound_vars t =
+  remove_duplicates (get_type_args kind bound_vars t)
+
+(* let get_row_var_type_args kind bound_vars row_var =
  *   remove_duplicates (get_row_var_type_args kind bound_vars row_var)
  *
  * let get_presence_type_args kind bound_vars f =
- *   remove_duplicates (get_presence_type_args kind bound_vars f) *)
+ *   remove_duplicates (get_presence_type_args kind bound_vars f)
+ *
+ * let type_variables_of_type_args =
+ *   List.map
+ *     (function
+ *        | `Type (`MetaTypeVar point) ->
+ *            begin
+ *              match Unionfind.find point with
+ *                | `Var (var, _, freedom) -> (var, freedom, `Type point)
+ *                | _ -> assert false
+ *            end
+ *        | `Type _ -> assert false
+ *        | `Row (fields, row_var, false) ->
+ *            assert (StringMap.is_empty fields);
+ *            begin
+ *              match Unionfind.find row_var with
+ *                | `Var (var, _, freedom) -> (var, freedom, `Row row_var)
+ *                | _ -> assert false
+ *            end
+ *        | `Presence (`Var point) ->
+ *            begin
+ *              match Unionfind.find point with
+ *                | `Var (var, _, freedom) -> (var, freedom, `Presence point)
+ *                | _ -> assert false
+ *            end
+ *        | `Presence _ | `Row _ -> assert false) *)
 
-(* let type_variables_of_type_args = *)
-(*   List.map *)
-(*     (function *)
-(*        | `Type (`MetaTypeVar point) -> *)
-(*            begin *)
-(*              match Unionfind.find point with *)
-(*                | `Var (var, _, freedom) -> (var, freedom, `Type point) *)
-(*                | _ -> assert false *)
-(*            end *)
-(*        | `Type _ -> assert false *)
-(*        | `Row (fields, row_var, false) -> *)
-(*            assert (StringMap.is_empty fields); *)
-(*            begin *)
-(*              match Unionfind.find row_var with *)
-(*                | `Var (var, _, freedom) -> (var, freedom, `Row row_var) *)
-(*                | _ -> assert false *)
-(*            end *)
-(*        | `Presence (`Var point) -> *)
-(*            begin *)
-(*              match Unionfind.find point with *)
-(*                | `Var (var, _, freedom) -> (var, freedom, `Presence point) *)
-(*                | _ -> assert false *)
-(*            end *)
-(*        | `Presence _ | `Row _ -> assert false) *)
-
-let get_quantifiers bound_vars = Types.quantifiers_of_type_args -<- (get_type_args `All bound_vars)
+(* let get_quantifiers bound_vars = Types.quantifiers_of_type_args -<- (get_type_args `All bound_vars) *)
 (* let get_row_var_quantifiers bound_vars = Types.quantifiers_of_type_args -<- (get_row_var_type_args `All bound_vars) *)
 (* let get_presence_quantifiers bound_vars = Types.quantifiers_of_type_args -<- (get_presence_type_args `All bound_vars) *)
 
@@ -253,6 +253,11 @@ let generalise_rigid = generalise `Rigid
 (** generalise both rigid and flexible type variables *)
 let generalise = generalise `All
 
-let get_quantifiers : environment -> datatype -> quantifier list =
+
+let get_type_args : environment -> datatype -> type_arg list =
   fun env t ->
-    get_quantifiers (env_type_vars env) t
+    get_type_args `All (env_type_vars env) t
+
+(* let get_quantifiers : environment -> datatype -> quantifier list =
+ *   fun env t ->
+ *     get_quantifiers (env_type_vars env) t *)
